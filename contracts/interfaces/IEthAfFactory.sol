@@ -33,6 +33,10 @@ interface IEthAfFactory {
     /// @return The address of the factory owner
     function owner() external view returns (address);
 
+    /// @notice Returns the pool deployer module
+    /// @return The address of the pool deployer module
+    function poolDeployerModule() external view returns (address);
+
     /// @notice Returns the tick spacing for a given fee amount, if enabled, or 0 if not enabled
     /// @dev A fee amount can never be removed, so this value should be hard coded or cached in the calling context
     /// @param fee The enabled fee, denominated in hundredths of a bip. Returns 0 in case of unenabled fee
@@ -64,6 +68,24 @@ interface IEthAfFactory {
         address tokenB,
         uint24 fee
     ) external returns (address pool);
+
+    /// @notice Get the parameters to be used in constructing the pool, set transiently during pool creation.
+    /// @dev Called by the pool constructor to fetch the parameters of the pool
+    /// Returns factory The factory address
+    /// Returns token0 The first token of the pool by address sort order
+    /// Returns token1 The second token of the pool by address sort order
+    /// Returns fee The fee collected upon every swap in the pool, denominated in hundredths of a bip
+    /// Returns tickSpacing The minimum number of ticks between initialized ticks
+    function parameters()
+        external
+        view
+        returns (
+            address factory,
+            address token0,
+            address token1,
+            uint24 fee,
+            int24 tickSpacing
+        );
 
     /// @notice Updates the owner of the factory
     /// @dev Must be called by the current owner

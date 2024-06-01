@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity =0.7.6;
 
-import '../interfaces/IEthAfPoolDeployer.sol';
-
 import './MockTimeEthAfPool.sol';
 
-contract MockTimeEthAfPoolDeployer is IEthAfPoolDeployer {
+contract MockTimeEthAfPoolDeployer {
     struct Parameters {
         address factory;
         address token0;
@@ -14,7 +12,7 @@ contract MockTimeEthAfPoolDeployer is IEthAfPoolDeployer {
         int24 tickSpacing;
     }
 
-    Parameters public override parameters;
+    Parameters public parameters;
 
     event PoolDeployed(address pool);
 

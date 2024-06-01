@@ -1,6 +1,7 @@
 import { Wallet } from 'ethers'
 import { ethers, waffle } from 'hardhat'
 import { EthAfFactory } from '../typechain/EthAfFactory'
+import { EthAfPoolDeployerModule } from '../typechain/EthAfPoolDeployerModule'
 import { expect } from './shared/expect'
 import snapshotGasCost from './shared/snapshotGasCost'
 
@@ -19,10 +20,14 @@ describe('EthAfFactory', () => {
   let wallet: Wallet, other: Wallet
 
   let factory: EthAfFactory
+  let poolDeployerModule: EthAfPoolDeployerModule
   let poolBytecode: string
   const fixture = async () => {
+    const poolDeployerModuleFactory = await ethers.getContractFactory('EthAfPoolDeployerModule')
+    const poolDeployerModule = (await poolDeployerModuleFactory.deploy()) as EthAfPoolDeployerModule
     const factoryFactory = await ethers.getContractFactory('EthAfFactory')
-    return (await factoryFactory.deploy()) as EthAfFactory
+    const factory = (await factoryFactory.deploy(poolDeployerModule.address)) as EthAfFactory
+    return { factory, poolDeployerModule }
   }
 
   let loadFixture: ReturnType<typeof createFixtureLoader>
@@ -37,7 +42,9 @@ describe('EthAfFactory', () => {
   })
 
   beforeEach('deploy factory', async () => {
-    factory = await loadFixture(fixture)
+    let fixtureResponse = await loadFixture(fixture)
+    factory = fixtureResponse.factory
+    poolDeployerModule = fixtureResponse.poolDeployerModule
   })
 
   it('owner is deployer', async () => {
@@ -58,6 +65,11 @@ describe('EthAfFactory', () => {
     expect(await factory.feeAmountTickSpacing(FeeAmount.LOW)).to.eq(TICK_SPACINGS[FeeAmount.LOW])
     expect(await factory.feeAmountTickSpacing(FeeAmount.MEDIUM)).to.eq(TICK_SPACINGS[FeeAmount.MEDIUM])
     expect(await factory.feeAmountTickSpacing(FeeAmount.HIGH)).to.eq(TICK_SPACINGS[FeeAmount.HIGH])
+  })
+
+  it('pool deployer module is set correctly', async () => {
+    const moduleAddress = await factory.poolDeployerModule()
+    expect(poolDeployerModule.address).to.eq(moduleAddress)
   })
 
   async function createAndCheckPool(

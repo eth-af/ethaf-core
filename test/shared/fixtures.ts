@@ -3,6 +3,7 @@ import { ethers } from 'hardhat'
 import { MockTimeEthAfPool } from '../../typechain/MockTimeEthAfPool'
 import { TestERC20 } from '../../typechain/TestERC20'
 import { EthAfFactory } from '../../typechain/EthAfFactory'
+import { EthAfPoolDeployerModule } from '../../typechain/EthAfPoolDeployerModule'
 import { TestEthAfCallee } from '../../typechain/TestEthAfCallee'
 import { TestEthAfRouter } from '../../typechain/TestEthAfRouter'
 import { MockTimeEthAfPoolDeployer } from '../../typechain/MockTimeEthAfPoolDeployer'
@@ -11,12 +12,15 @@ import { Fixture } from 'ethereum-waffle'
 
 interface FactoryFixture {
   factory: EthAfFactory
+  poolDeployerModule: EthAfPoolDeployerModule
 }
 
 async function factoryFixture(): Promise<FactoryFixture> {
+  const poolDeployerModuleFactory = await ethers.getContractFactory('EthAfPoolDeployerModule')
+  const poolDeployerModule = (await poolDeployerModuleFactory.deploy()) as EthAfPoolDeployerModule
   const factoryFactory = await ethers.getContractFactory('EthAfFactory')
-  const factory = (await factoryFactory.deploy()) as EthAfFactory
-  return { factory }
+  const factory = (await factoryFactory.deploy(poolDeployerModule.address)) as EthAfFactory
+  return { factory, poolDeployerModule }
 }
 
 interface TokensFixture {
@@ -55,7 +59,7 @@ interface PoolFixture extends TokensAndFactoryFixture {
 export const TEST_POOL_START_TIME = 1601906400
 
 export const poolFixture: Fixture<PoolFixture> = async function (): Promise<PoolFixture> {
-  const { factory } = await factoryFixture()
+  const { factory, poolDeployerModule } = await factoryFixture()
   const { token0, token1, token2 } = await tokensFixture()
 
   const MockTimeEthAfPoolDeployerFactory = await ethers.getContractFactory('MockTimeEthAfPoolDeployer')
@@ -72,6 +76,7 @@ export const poolFixture: Fixture<PoolFixture> = async function (): Promise<Pool
     token1,
     token2,
     factory,
+    poolDeployerModule,
     swapTargetCallee,
     swapTargetRouter,
     createPool: async (fee, tickSpacing, firstToken = token0, secondToken = token1) => {

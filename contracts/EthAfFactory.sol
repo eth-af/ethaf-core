@@ -3,23 +3,35 @@ pragma solidity =0.7.6;
 
 import './interfaces/IEthAfFactory.sol';
 
-import './EthAfPoolDeployer.sol';
+import './EthAfPoolDeployerModule.sol';
 import './NoDelegateCall.sol';
 
 import './EthAfPool.sol';
 
 /// @title Canonical ETH AF factory
 /// @notice Deploys ETH AF pools and manages ownership and control over pool protocol fees
-contract EthAfFactory is IEthAfFactory, EthAfPoolDeployer, NoDelegateCall {
+contract EthAfFactory is IEthAfFactory, NoDelegateCall {
     /// @inheritdoc IEthAfFactory
     address public override owner;
+    /// @inheritdoc IEthAfFactory
+    address public override poolDeployerModule;
 
     /// @inheritdoc IEthAfFactory
     mapping(uint24 => int24) public override feeAmountTickSpacing;
     /// @inheritdoc IEthAfFactory
     mapping(address => mapping(address => mapping(uint24 => address))) public override getPool;
 
-    constructor() {
+    struct Parameters {
+        address factory;
+        address token0;
+        address token1;
+        uint24 fee;
+        int24 tickSpacing;
+    }
+
+    Parameters public override parameters;
+
+    constructor(address _poolDeployerModule) {
         owner = msg.sender;
         emit OwnerChanged(address(0), msg.sender);
 
@@ -29,6 +41,11 @@ contract EthAfFactory is IEthAfFactory, EthAfPoolDeployer, NoDelegateCall {
         emit FeeAmountEnabled(3000, 60);
         feeAmountTickSpacing[10000] = 200;
         emit FeeAmountEnabled(10000, 200);
+
+        require(_poolDeployerModule != address(0));
+        poolDeployerModule = _poolDeployerModule;
+
+        parameters.factory = address(this);
     }
 
     /// @inheritdoc IEthAfFactory
@@ -43,11 +60,27 @@ contract EthAfFactory is IEthAfFactory, EthAfPoolDeployer, NoDelegateCall {
         int24 tickSpacing = feeAmountTickSpacing[fee];
         require(tickSpacing != 0);
         require(getPool[token0][token1][fee] == address(0));
-        pool = deploy(address(this), token0, token1, fee, tickSpacing);
+        pool = _deploy(token0, token1, fee, tickSpacing);
         getPool[token0][token1][fee] = pool;
         // populate mapping in the reverse direction, deliberate choice to avoid the cost of comparing addresses
         getPool[token1][token0][fee] = pool;
         emit PoolCreated(token0, token1, fee, tickSpacing, pool);
+    }
+
+    // deploys the pool
+    function _deploy(address token0, address token1, uint24 fee, int24 tickSpacing) internal returns (address pool) {
+        // store parameters for pool callback
+        parameters.token0 = token0;
+        parameters.token1 = token1;
+        parameters.fee = fee;
+        parameters.tickSpacing = tickSpacing;
+        // encode calldata
+        bytes memory data = abi.encodeWithSelector(IEthAfPoolDeployerModule.deploy.selector, token0, token1, fee);
+        // delegatecall into the pool deployer module
+        (bool success, bytes memory returndata) = poolDeployerModule.delegatecall(data);
+        require(success && returndata.length == 32);
+        // decode response
+        assembly { pool := mload(add(returndata, 32)) }
     }
 
     /// @inheritdoc IEthAfFactory
