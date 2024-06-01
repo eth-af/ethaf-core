@@ -97,4 +97,14 @@ interface IEthAfFactory {
     /// @param fee The fee amount to enable, denominated in hundredths of a bip (i.e. 1e-6)
     /// @param tickSpacing The spacing between ticks to be enforced for all pools created with the given fee amount
     function enableFeeAmount(uint24 fee, int24 tickSpacing) external;
+
+    /// @notice Returns the number of pools that have been created in this factory
+    /// @return len The length of the pools list
+    function allPoolsLength() external view returns (uint256 len);
+
+    /// @notice Returns a pool from the pool list
+    /// @param index Index of the pool in the list
+    /// @return pool The pool at the index in the list
+    function allPools(uint256 index) external view returns (address pool);
+    
 }

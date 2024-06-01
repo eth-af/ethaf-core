@@ -72,6 +72,12 @@ describe('EthAfFactory', () => {
     expect(poolDeployerModule.address).to.eq(moduleAddress)
   })
 
+  it('factory pools list begins with length 0', async () => {
+    expect(await factory.allPoolsLength()).to.eq(0)
+    await expect(factory.allPools(0)).to.be.reverted
+    await expect(factory.allPools(1)).to.be.reverted
+  })
+
   async function createAndCheckPool(
     tokens: [string, string],
     feeAmount: FeeAmount,
@@ -88,6 +94,10 @@ describe('EthAfFactory', () => {
     await expect(factory.createPool(tokens[1], tokens[0], feeAmount)).to.be.reverted
     expect(await factory.getPool(tokens[0], tokens[1], feeAmount), 'getPool in order').to.eq(create2Address)
     expect(await factory.getPool(tokens[1], tokens[0], feeAmount), 'getPool in reverse').to.eq(create2Address)
+
+    expect(await factory.allPoolsLength()).to.eq(1)
+    expect(await factory.allPools(0)).to.eq(create2Address)
+    await expect(factory.allPools(1)).to.be.reverted
 
     const poolContractFactory = await ethers.getContractFactory('EthAfPool')
     const pool = poolContractFactory.attach(create2Address)

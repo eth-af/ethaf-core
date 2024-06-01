@@ -20,6 +20,7 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
     mapping(uint24 => int24) public override feeAmountTickSpacing;
     /// @inheritdoc IEthAfFactory
     mapping(address => mapping(address => mapping(uint24 => address))) public override getPool;
+    address[] internal _allPools;
 
     struct Parameters {
         address factory;
@@ -64,6 +65,7 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         getPool[token0][token1][fee] = pool;
         // populate mapping in the reverse direction, deliberate choice to avoid the cost of comparing addresses
         getPool[token1][token0][fee] = pool;
+        _allPools.push(pool);
         emit PoolCreated(token0, token1, fee, tickSpacing, pool);
     }
 
@@ -103,4 +105,16 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         feeAmountTickSpacing[fee] = tickSpacing;
         emit FeeAmountEnabled(fee, tickSpacing);
     }
+
+    /// @inheritdoc IEthAfFactory
+    function allPoolsLength() external view override returns (uint256 len) {
+        len = _allPools.length;
+    }
+
+    /// @inheritdoc IEthAfFactory
+    function allPools(uint256 index) external view override returns (address pool) {
+        require(index < _allPools.length, "index too high");
+        pool = _allPools[index];
+    }
+
 }
