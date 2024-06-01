@@ -1,46 +1,48 @@
-# Uniswap V3
+# ETH AF Core
 
-[![Lint](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/lint.yml/badge.svg)](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/lint.yml)
-[![Tests](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/tests.yml)
-[![Fuzz Testing](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/fuzz-testing.yml/badge.svg)](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/fuzz-testing.yml)
-[![Mythx](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/mythx.yml/badge.svg)](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/mythx.yml)
-[![npm version](https://img.shields.io/npm/v/@uniswap/v3-core/latest.svg)](https://www.npmjs.com/package/@uniswap/v3-core/v/latest)
+Core smart contracts of ETH AF
 
-This repository contains the core smart contracts for the Uniswap V3 Protocol.
-For higher level contracts, see the [uniswap-v3-periphery](https://github.com/Uniswap/uniswap-v3-periphery)
+[![Lint](https://github.com/wwHysenberg/ethaf-coreactions/workflows/lint.yml/badge.svg)](https://github.com/wwHysenberg/ethaf-coreactions/workflows/lint.yml)
+[![Tests](https://github.com/wwHysenberg/ethaf-coreactions/workflows/tests.yml/badge.svg)](https://github.com/wwHysenberg/ethaf-coreactions/workflows/tests.yml)
+[![Fuzz Testing](https://github.com/wwHysenberg/ethaf-coreactions/workflows/fuzz-testing.yml/badge.svg)](https://github.com/wwHysenberg/ethaf-coreactions/workflows/fuzz-testing.yml)
+[![Mythx](https://github.com/wwHysenberg/ethaf-coreactions/workflows/mythx.yml/badge.svg)](https://github.com/wwHysenberg/ethaf-coreactions/workflows/mythx.yml)
+[![npm version](https://img.shields.io/npm/v/@ethaf/ethaf-core/latest.svg)](https://www.npmjs.com/package/@ethaf/ethaf-core/v/latest)
+
+This repository contains the core smart contracts for the ETH AF Protocol.
+For higher level contracts, see the [ethaf-periphery](https://github.com/wwHysenberg/ethaf-periphery)
 repository.
 
 ## Local deployment
 
 In order to deploy this code to a local testnet, you should install the npm package
-`@uniswap/v3-core`
+`@ethaf/ethaf-core`
 and import the factory bytecode located at
-`@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json`.
+`@ethaf/ethaf-core/artifacts/contracts/EthAfFactory.sol/EthAfFactory.json`.
 For example:
 
 ```typescript
 import {
   abi as FACTORY_ABI,
   bytecode as FACTORY_BYTECODE,
-} from '@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json'
+} from '@ethaf/ethaf-core/artifacts/contracts/EthAfFactory.sol/EthAfFactory.json'
 
 // deploy the bytecode
 ```
 
 This will ensure that you are testing against the same bytecode that is deployed to
-mainnet and public testnets, and all Uniswap code will correctly interoperate with
+mainnet and public testnets, and all ETH AF code will correctly interoperate with
 your local deployment.
 
 ## Using solidity interfaces
 
-The Uniswap v3 interfaces are available for import into solidity smart contracts
-via the npm artifact `@uniswap/v3-core`, e.g.:
+The ETH AF interfaces are available for import into solidity smart contracts
+via the npm artifact `@ethaf/ethaf-core`, e.g.:
 
 ```solidity
-import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+import '@ethaf/ethaf-core/contracts/interfaces/IEthAfPool.sol';
 
 contract MyContract {
-  IUniswapV3Pool pool;
+  IEthAfPool pool;
 
   function doSomethingWithPool() {
     // pool.swap(...);
@@ -51,7 +53,7 @@ contract MyContract {
 
 ## Licensing
 
-The primary license for Uniswap V3 Core is the Business Source License 1.1 (`BUSL-1.1`), see [`LICENSE`](./LICENSE). However, some files are dual licensed under `GPL-2.0-or-later`:
+The primary license for ETH AF Core is the Business Source License 1.1 (`BUSL-1.1`), see [`LICENSE`](./LICENSE). However, some files are dual licensed under `GPL-2.0-or-later`:
 
 - All files in `contracts/interfaces/` may also be licensed under `GPL-2.0-or-later` (as indicated in their SPDX headers), see [`contracts/interfaces/LICENSE`](./contracts/interfaces/LICENSE)
 - Several files in `contracts/libraries/` may also be licensed under `GPL-2.0-or-later` (as indicated in their SPDX headers), see [`contracts/libraries/LICENSE`](contracts/libraries/LICENSE)
