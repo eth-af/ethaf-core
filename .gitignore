@@ -1,0 +1,15 @@
+artifacts/
+cache/
+crytic-export/
+node_modules/
+typechain/
+
+.vscode
+.env
+coverage
+coverage.json
+docs/*
+
+abi/
+*-backup*
+*-ignore*
