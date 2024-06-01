@@ -20,7 +20,6 @@ import './libraries/LiquidityMath.sol';
 import './libraries/SqrtPriceMath.sol';
 import './libraries/SwapMath.sol';
 
-import './interfaces/IEthAfPoolDeployer.sol';
 import './interfaces/IEthAfFactory.sol';
 import './interfaces/IERC20Minimal.sol';
 import './interfaces/callback/IEthAfMintCallback.sol';
@@ -116,7 +115,7 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
 
     constructor() {
         int24 _tickSpacing;
-        (factory, token0, token1, fee, _tickSpacing) = IEthAfPoolDeployer(msg.sender).parameters();
+        (factory, token0, token1, fee, _tickSpacing) = IEthAfFactory(msg.sender).parameters();
         tickSpacing = _tickSpacing;
 
         maxLiquidityPerTick = Tick.tickSpacingToMaxLiquidityPerTick(_tickSpacing);
