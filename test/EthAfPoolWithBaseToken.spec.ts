@@ -148,7 +148,7 @@ describe('EthAfPoolWithBaseToken', () => {
       // token balances should have decreased from mint
       expect(balU1.token0.lt(balU0.token0.sub(100)))
       expect(balU1.token1.lt(balU0.token1.sub(100)))
-      let diffU01 = checkBalanceDiff(balU0, balU1, true, "wallet")
+      let diffU01 = checkBalanceDiff(balU0, balU1, false, "wallet")
 
       var {
         liquidity,
@@ -165,7 +165,7 @@ describe('EthAfPoolWithBaseToken', () => {
       const balU4 = await getBalances(wallet.address)
       expectInRange(balU0.token0.sub(10), balU4.token0, balU0.token0)
       expectInRange(balU0.token1.sub(10), balU4.token1, balU0.token1)
-      let diffU14 = checkBalanceDiff(balU1, balU4, true, "wallet")
+      let diffU14 = checkBalanceDiff(balU1, balU4, false, "wallet")
 
       return {
         balU0, balU1, balU4, diffU01, diffU14
@@ -265,9 +265,9 @@ describe('EthAfPoolWithBaseToken', () => {
       expect(feeGrowthInside1LastX128).eq(feeGrowthGlobal1X128)
 
       const balU1 = await getBalances(wallet.address)
-      let diffU01 = checkBalanceDiff(balU0, balU1, true, "wallet")
+      let diffU01 = checkBalanceDiff(balU0, balU1, false, "wallet")
       const balP1 = await getBalances(pool.address)
-      let diffP01 = checkBalanceDiff(balP0, balP1, true, "pool")
+      let diffP01 = checkBalanceDiff(balP0, balP1, false, "pool")
 
       // swap to generate fees
       const swapTestCase = (zeroForOne
@@ -284,9 +284,9 @@ describe('EthAfPoolWithBaseToken', () => {
       )
       await executeSwap(pool, swapTestCase, poolFunctions, wallet.address)
       const balU2 = await getBalances(wallet.address)
-      let diffU12 = checkBalanceDiff(balU1, balU2, true, "wallet")
+      let diffU12 = checkBalanceDiff(balU1, balU2, false, "wallet")
       const balP2 = await getBalances(pool.address)
-      let diffP12 = checkBalanceDiff(balP1, balP2, true, "pool")
+      let diffP12 = checkBalanceDiff(balP1, balP2, false, "pool")
       const position1 = await pool.positions(getPositionKey(wallet.address, position.tickLower, position.tickUpper))
       var {
         liquidity,
@@ -308,9 +308,9 @@ describe('EthAfPoolWithBaseToken', () => {
       }
       let slot0_2 = await pool.slot0()
       const balU3 = await getBalances(wallet.address)
-      let diffU23 = checkBalanceDiff(balU2, balU3, true, "wallet")
+      let diffU23 = checkBalanceDiff(balU2, balU3, false, "wallet")
       const balP3 = await getBalances(pool.address)
-      let diffP23 = checkBalanceDiff(balP2, balP3, true, "pool")
+      let diffP23 = checkBalanceDiff(balP2, balP3, false, "pool")
 
       // burn 0 to recalculate fees earned
       await pool.burn(position.tickLower, position.tickUpper, 0)
@@ -341,9 +341,9 @@ describe('EthAfPoolWithBaseToken', () => {
       } = position3
 
       const balU4 = await getBalances(wallet.address)
-      let diffU34 = checkBalanceDiff(balU3, balU4, true, "wallet")
+      let diffU34 = checkBalanceDiff(balU3, balU4, false, "wallet")
       const balP4 = await getBalances(pool.address)
-      let diffP34 = checkBalanceDiff(balP3, balP4, true, "pool")
+      let diffP34 = checkBalanceDiff(balP3, balP4, false, "pool")
 
       // simulate collect
       const {
@@ -354,9 +354,9 @@ describe('EthAfPoolWithBaseToken', () => {
       await pool.collect(wallet.address, position.tickLower, position.tickUpper, MaxUint128, MaxUint128)
 
       const balU5 = await getBalances(wallet.address)
-      let diffU45 = checkBalanceDiff(balU4, balU5, true, "wallet")
+      let diffU45 = checkBalanceDiff(balU4, balU5, false, "wallet")
       const balP5 = await getBalances(pool.address)
-      let diffP45 = checkBalanceDiff(balP4, balP5, true, "pool")
+      let diffP45 = checkBalanceDiff(balP4, balP5, false, "pool")
 
       let slot0 = await pool.slot0()
       // may have changed after distributeFees
@@ -713,7 +713,7 @@ describe('EthAfPoolWithBaseToken', () => {
       else console.log(`${name} token1 balance did not change`)
     }
 
-    return { diff0, diff1 }
+    return { token0: diff0, token1: diff1 }
   }
 
   // can't use address zero because the ERC20 token does not allow it
