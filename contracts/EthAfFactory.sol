@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity =0.7.6;
+pragma abicoder v2;
 
 import './interfaces/IEthAfFactory.sol';
 
@@ -8,13 +9,14 @@ import './NoDelegateCall.sol';
 
 import './EthAfPool.sol';
 
+
 /// @title Canonical ETH AF factory
 /// @notice Deploys ETH AF pools and manages ownership and control over pool protocol fees
 contract EthAfFactory is IEthAfFactory, NoDelegateCall {
     /// @inheritdoc IEthAfFactory
     address public override owner;
     /// @inheritdoc IEthAfFactory
-    address public override poolDeployerModule;
+    address public override immutable poolDeployerModule;
 
     /// @inheritdoc IEthAfFactory
     mapping(uint24 => int24) public override feeAmountTickSpacing;
@@ -28,11 +30,27 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         address token1;
         uint24 fee;
         int24 tickSpacing;
+        bytes32 poolTokenSettings;
     }
 
     Parameters public override parameters;
 
-    constructor(address _poolDeployerModule) {
+    /// @inheritdoc IEthAfFactory
+    address public override swapFeeDistributor;
+
+    mapping(address => bytes32) public tokenSettings;
+    mapping(address => mapping(address => bytes32)) public tokenPairSettings;
+
+    bytes32 public constant IS_BASE_TOKEN_USD_MASK = bytes32(uint256(1));
+    bytes32 public constant IS_BASE_TOKEN_ETH_MASK = bytes32(uint256(2));
+
+    bytes32 public constant IS_TOKEN0_BASE_TOKEN_MASK = bytes32(uint256(1));
+    bytes32 public constant IS_TOKEN1_BASE_TOKEN_MASK = bytes32(uint256(2));
+    //bytes32 public constant IS_TOKEN0_BASE_TOKEN_MASK = bytes32(uint256(4));
+
+    constructor(
+        address _poolDeployerModule
+    ) {
         owner = msg.sender;
         emit OwnerChanged(address(0), msg.sender);
 
@@ -76,6 +94,7 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         parameters.token1 = token1;
         parameters.fee = fee;
         parameters.tickSpacing = tickSpacing;
+        parameters.poolTokenSettings = _calculatePoolTokenSettings(token0, token1);
         // encode calldata
         bytes memory data = abi.encodeWithSelector(IEthAfPoolDeployerModule.deploy.selector, token0, token1, fee);
         // delegatecall into the pool deployer module
@@ -83,6 +102,37 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         require(success && returndata.length == 32);
         // decode response
         assembly { pool := mload(add(returndata, 32)) }
+        require(pool != address(0));
+    }
+
+    // calculates the token settings to use in a pool with these tokens
+    function _calculatePoolTokenSettings(address token0, address token1) internal view returns (bytes32 poolTokenSettings) {
+        poolTokenSettings = tokenPairSettings[token0][token1];
+        if(poolTokenSettings != bytes32(uint256(0))) return poolTokenSettings;
+        bytes32 tokenSettings0 = tokenSettings[token0];
+        bytes32 tokenSettings1 = tokenSettings[token1];
+        poolTokenSettings = bytes32(uint256(0));
+        // if only one token is USD pegged, use that as the base token
+        bool isBaseTokenUSD0 = (tokenSettings0 & IS_BASE_TOKEN_USD_MASK) != 0;
+        bool isBaseTokenUSD1 = (tokenSettings1 & IS_BASE_TOKEN_USD_MASK) != 0;
+        if(isBaseTokenUSD0 && !isBaseTokenUSD1) {
+            poolTokenSettings = IS_TOKEN0_BASE_TOKEN_MASK;
+        }
+        else if(!isBaseTokenUSD0 && isBaseTokenUSD1) {
+            poolTokenSettings = IS_TOKEN1_BASE_TOKEN_MASK;
+        }
+        // if 0 or 2 are USD pegged
+        else {
+            // if only one token is ETH pegged, use that at the base token
+            bool isBaseTokenETH0 = (tokenSettings0 & IS_BASE_TOKEN_ETH_MASK) != 0;
+            bool isBaseTokenETH1 = (tokenSettings1 & IS_BASE_TOKEN_ETH_MASK) != 0;
+            if(isBaseTokenETH0 && !isBaseTokenETH1) {
+                poolTokenSettings = IS_TOKEN0_BASE_TOKEN_MASK;
+            }
+            else if(!isBaseTokenETH0 && isBaseTokenETH1) {
+                poolTokenSettings = IS_TOKEN1_BASE_TOKEN_MASK;
+            }
+        }
     }
 
     /// @inheritdoc IEthAfFactory
@@ -117,4 +167,56 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         pool = _allPools[index];
     }
 
+    function getTokenSettings(address token) external view returns (
+        bool isBaseTokenUSD,
+        bool isBaseTokenETH
+    ) {
+        bytes32 settings = tokenSettings[token];
+        isBaseTokenUSD = (settings & IS_BASE_TOKEN_USD_MASK) != 0;
+        isBaseTokenETH = (settings & IS_BASE_TOKEN_ETH_MASK) != 0;
+    }
+
+    struct SetTokenSettingsParam {
+        address token;
+        bytes32 settings;
+    }
+
+    event TokenSettingsSet(address indexed token, bytes32 settings);
+
+    function setTokenSettings(SetTokenSettingsParam[] calldata params) external {
+        require(msg.sender == owner);
+        for(uint256 i = 0; i < params.length; ++i) {
+            address token = params[i].token;
+            bytes32 settings = params[i].settings;
+            tokenSettings[token] = settings;
+            emit TokenSettingsSet(token, settings);
+        }
+    }
+
+    struct SetTokenPairSettingsParam {
+        address token0; // order required
+        address token1;
+        bytes32 settings;
+    }
+
+    event TokenPairSettingsSet(address indexed token0, address indexed token1, bytes32 settings);
+
+    function setTokenPairSettings(SetTokenPairSettingsParam[] calldata params) external {
+        require(msg.sender == owner);
+        for(uint256 i = 0; i < params.length; ++i) {
+            address token0 = params[i].token0;
+            address token1 = params[i].token1;
+            bytes32 settings = params[i].settings;
+            tokenPairSettings[token0][token1] = settings; // only populate forward direction
+            emit TokenPairSettingsSet(token0, token1, settings);
+        }
+    }
+
+    event SwapFeeDistributorSet(address indexed distributor);
+
+    function setSwapFeeDistributor(address distributor) external {
+        require(msg.sender == owner);
+        swapFeeDistributor = distributor;
+        emit SwapFeeDistributorSet(distributor);
+    }
 }

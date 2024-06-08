@@ -6,6 +6,7 @@ import { expect } from './shared/expect'
 import snapshotGasCost from './shared/snapshotGasCost'
 
 import { FeeAmount, getCreate2Address, TICK_SPACINGS } from './shared/utilities'
+import { toBytes32 } from './../scripts/utils/strings'
 
 const { constants } = ethers
 
@@ -81,7 +82,8 @@ describe('EthAfFactory', () => {
   async function createAndCheckPool(
     tokens: [string, string],
     feeAmount: FeeAmount,
-    tickSpacing: number = TICK_SPACINGS[feeAmount]
+    tickSpacing: number = TICK_SPACINGS[feeAmount],
+    expectedPoolTokenSettings:any = undefined
   ) {
     const create2Address = getCreate2Address(factory.address, tokens, feeAmount, poolBytecode)
     const create = factory.createPool(tokens[0], tokens[1], feeAmount)
@@ -106,6 +108,10 @@ describe('EthAfFactory', () => {
     expect(await pool.token1(), 'pool token1').to.eq(TEST_ADDRESSES[1])
     expect(await pool.fee(), 'pool fee').to.eq(feeAmount)
     expect(await pool.tickSpacing(), 'pool tick spacing').to.eq(tickSpacing)
+
+    if(!!expectedPoolTokenSettings) {
+      expect(await pool.poolTokenSettings(), 'pool token settings').to.eq(expectedPoolTokenSettings)
+    }
   }
 
   describe('#createPool', () => {
@@ -142,6 +148,12 @@ describe('EthAfFactory', () => {
 
     it('gas', async () => {
       await snapshotGasCost(factory.createPool(TEST_ADDRESSES[0], TEST_ADDRESSES[1], FeeAmount.MEDIUM))
+    })
+
+    it('succeeds when factory has no token settings', async () => {
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(toBytes32(0))
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(toBytes32(0))
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(0))
     })
   })
 
@@ -194,6 +206,156 @@ describe('EthAfFactory', () => {
     it('enables pool creation', async () => {
       await factory.enableFeeAmount(250, 15)
       await createAndCheckPool([TEST_ADDRESSES[0], TEST_ADDRESSES[1]], 250, 15)
+    })
+  })
+
+  describe('#setTokenSettings', () => {
+    it('fails if caller is not owner', async () => {
+      await expect(factory.connect(other).setTokenSettings([])).to.be.reverted
+    })
+    it('sets the token settings mapping', async () => {
+      await factory.setTokenSettings([{
+        token: TEST_ADDRESSES[0],
+        settings: toBytes32(1)
+      }])
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(toBytes32(1))
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(toBytes32(0))
+    })
+    it('emits an event', async () => {
+      await expect(factory.setTokenSettings([{
+        token: TEST_ADDRESSES[0],
+        settings: toBytes32(1)
+      }])).to.emit(factory, 'TokenSettingsSet').withArgs(TEST_ADDRESSES[0], toBytes32(1))
+    })
+    it('can create pool with token0 base token pt 1', async () => {
+      await factory.setTokenSettings([{
+        token: TEST_ADDRESSES[0],
+        settings: toBytes32(1)
+      }])
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(1))
+    })
+    it('can create pool with token1 base token pt 1', async () => {
+      await factory.setTokenSettings([{
+        token: TEST_ADDRESSES[1],
+        settings: toBytes32(1)
+      }])
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(2))
+    })
+    it('can create pool with neither base token pt 1', async () => {
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(0))
+    })
+    it('can create pool with neither base token pt 2', async () => {
+      await factory.setTokenSettings([
+        {
+          token: TEST_ADDRESSES[0],
+          settings: toBytes32(1)
+        },
+        {
+          token: TEST_ADDRESSES[1],
+          settings: toBytes32(1)
+        },
+      ])
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(toBytes32(1))
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(toBytes32(1))
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(0))
+    })
+    it('can create pool with token0 base token pt 2', async () => {
+      await factory.setTokenSettings([{
+        token: TEST_ADDRESSES[0],
+        settings: toBytes32(2)
+      }])
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(toBytes32(2))
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(1))
+    })
+    it('can create pool with token1 base token pt 2', async () => {
+      await factory.setTokenSettings([{
+        token: TEST_ADDRESSES[1],
+        settings: toBytes32(2)
+      }])
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(toBytes32(2))
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(2))
+    })
+    it('can create pool with neither base token pt 3', async () => {
+      await factory.setTokenSettings([
+        {
+          token: TEST_ADDRESSES[0],
+          settings: toBytes32(2)
+        },
+        {
+          token: TEST_ADDRESSES[1],
+          settings: toBytes32(2)
+        },
+      ])
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(toBytes32(2))
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(toBytes32(2))
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(0))
+    })
+    it('can create pool with token0 base token pt 3', async () => {
+      await factory.setTokenSettings([
+        {
+          token: TEST_ADDRESSES[0],
+          settings: toBytes32(1) // usd
+        },
+        {
+          token: TEST_ADDRESSES[1],
+          settings: toBytes32(2) // eth
+        },
+      ])
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(toBytes32(1))
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(toBytes32(2))
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(1))
+    })
+    it('can create pool with token1 base token pt 3', async () => {
+      await factory.setTokenSettings([
+        {
+          token: TEST_ADDRESSES[0],
+          settings: toBytes32(2) // eth
+        },
+        {
+          token: TEST_ADDRESSES[1],
+          settings: toBytes32(1) // usd
+        },
+      ])
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(toBytes32(2))
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(toBytes32(1))
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(2))
+    })
+  })
+
+  describe('#setTokenPairSettings', () => {
+    it('fails if caller is not owner', async () => {
+      await expect(factory.connect(other).setTokenPairSettings([])).to.be.reverted
+    })
+    it('sets the token pair settings mapping', async () => {
+      await factory.setTokenPairSettings([{
+        token0: TEST_ADDRESSES[0],
+        token1: TEST_ADDRESSES[1],
+        settings: toBytes32(1)
+      }])
+      expect(await factory.tokenPairSettings(TEST_ADDRESSES[0], TEST_ADDRESSES[1])).to.eq(toBytes32(1))
+    })
+    it('emits an event', async () => {
+      await expect(factory.setTokenPairSettings([{
+        token0: TEST_ADDRESSES[0],
+        token1: TEST_ADDRESSES[1],
+        settings: toBytes32(1)
+      }])).to.emit(factory, 'TokenPairSettingsSet').withArgs(TEST_ADDRESSES[0], TEST_ADDRESSES[1], toBytes32(1))
+    })
+    it('can create pool with token0 base token pt 1', async () => {
+      await factory.setTokenPairSettings([{
+        token0: TEST_ADDRESSES[0],
+        token1: TEST_ADDRESSES[1],
+        settings: toBytes32(1)
+      }])
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(1))
+    })
+    it('can create pool with token1 base token pt 1', async () => {
+      await factory.setTokenPairSettings([{
+        token0: TEST_ADDRESSES[0],
+        token1: TEST_ADDRESSES[1],
+        settings: toBytes32(2)
+      }])
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(2))
     })
   })
 })

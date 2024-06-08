@@ -33,6 +33,10 @@ interface IEthAfFactory {
     /// @return The address of the factory owner
     function owner() external view returns (address);
 
+    /// @notice Returns the swap fee distributor
+    /// @return The address of the swap fee distributor
+    function swapFeeDistributor() external view returns (address);
+
     /// @notice Returns the pool deployer module
     /// @return The address of the pool deployer module
     function poolDeployerModule() external view returns (address);
@@ -84,7 +88,8 @@ interface IEthAfFactory {
             address token0,
             address token1,
             uint24 fee,
-            int24 tickSpacing
+            int24 tickSpacing,
+            bytes32 poolTokenSettings
         );
 
     /// @notice Updates the owner of the factory
@@ -106,5 +111,5 @@ interface IEthAfFactory {
     /// @param index Index of the pool in the list
     /// @return pool The pool at the index in the list
     function allPools(uint256 index) external view returns (address pool);
-    
+
 }

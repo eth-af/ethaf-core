@@ -7,12 +7,14 @@ import { EthAfPoolDeployerModule } from '../../typechain/EthAfPoolDeployerModule
 import { TestEthAfCallee } from '../../typechain/TestEthAfCallee'
 import { TestEthAfRouter } from '../../typechain/TestEthAfRouter'
 import { MockTimeEthAfPoolDeployer } from '../../typechain/MockTimeEthAfPoolDeployer'
+import { EthAfSwapFeeDistributor } from '../../typechain/EthAfSwapFeeDistributor'
 
 import { Fixture } from 'ethereum-waffle'
 
 interface FactoryFixture {
   factory: EthAfFactory
   poolDeployerModule: EthAfPoolDeployerModule
+  swapFeeDistributor: EthAfSwapFeeDistributor
 }
 
 async function factoryFixture(): Promise<FactoryFixture> {
@@ -20,7 +22,10 @@ async function factoryFixture(): Promise<FactoryFixture> {
   const poolDeployerModule = (await poolDeployerModuleFactory.deploy()) as EthAfPoolDeployerModule
   const factoryFactory = await ethers.getContractFactory('EthAfFactory')
   const factory = (await factoryFactory.deploy(poolDeployerModule.address)) as EthAfFactory
-  return { factory, poolDeployerModule }
+  const swapFeeDistributorFactory = await ethers.getContractFactory('EthAfSwapFeeDistributor')
+  const swapFeeDistributor = (await swapFeeDistributorFactory.deploy(factory.address)) as EthAfSwapFeeDistributor
+  await factory.setSwapFeeDistributor(swapFeeDistributor.address)
+  return { factory, poolDeployerModule, swapFeeDistributor }
 }
 
 interface TokensFixture {
@@ -59,7 +64,7 @@ interface PoolFixture extends TokensAndFactoryFixture {
 export const TEST_POOL_START_TIME = 1601906400
 
 export const poolFixture: Fixture<PoolFixture> = async function (): Promise<PoolFixture> {
-  const { factory, poolDeployerModule } = await factoryFixture()
+  const { factory, poolDeployerModule, swapFeeDistributor } = await factoryFixture()
   const { token0, token1, token2 } = await tokensFixture()
 
   const MockTimeEthAfPoolDeployerFactory = await ethers.getContractFactory('MockTimeEthAfPoolDeployer')
@@ -77,6 +82,7 @@ export const poolFixture: Fixture<PoolFixture> = async function (): Promise<Pool
     token2,
     factory,
     poolDeployerModule,
+    swapFeeDistributor,
     swapTargetCallee,
     swapTargetRouter,
     createPool: async (fee, tickSpacing, firstToken = token0, secondToken = token1) => {

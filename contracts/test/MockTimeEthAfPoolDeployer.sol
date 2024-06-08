@@ -10,6 +10,7 @@ contract MockTimeEthAfPoolDeployer {
         address token1;
         uint24 fee;
         int24 tickSpacing;
+        bytes32 poolTokenSettings;
     }
 
     Parameters public parameters;
@@ -23,11 +24,17 @@ contract MockTimeEthAfPoolDeployer {
         uint24 fee,
         int24 tickSpacing
     ) external returns (address pool) {
-        parameters = Parameters({factory: factory, token0: token0, token1: token1, fee: fee, tickSpacing: tickSpacing});
+        parameters = Parameters({factory: factory, token0: token0, token1: token1, fee: fee, tickSpacing: tickSpacing, poolTokenSettings: poolTokenSettings});
         pool = address(
             new MockTimeEthAfPool{salt: keccak256(abi.encodePacked(token0, token1, fee, tickSpacing))}()
         );
         emit PoolDeployed(pool);
         delete parameters;
+    }
+
+    bytes32 public poolTokenSettings;
+
+    function setPoolTokenSettings(bytes32 settings) external {
+        poolTokenSettings = settings;
     }
 }
