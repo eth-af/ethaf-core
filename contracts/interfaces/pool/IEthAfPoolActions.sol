@@ -100,4 +100,17 @@ interface IEthAfPoolActions {
     /// the input observationCardinalityNext.
     /// @param observationCardinalityNext The desired minimum number of observations for the pool to store
     function increaseObservationCardinalityNext(uint16 observationCardinalityNext) external;
+
+    /// @notice Collects the swap fees from base tokens in this pool
+    /// @dev also returns pool metadata for gas efficiency
+    /// @return token0_ The token0 contract address
+    /// @return token1_ The token1 contract address
+    /// @return isBaseToken0 True if token0 is a base token.
+    /// @return isBaseToken1 True if token1 is a base token.
+    function collectBaseToken() external returns (
+        address token0_,
+        address token1_,
+        bool isBaseToken0,
+        bool isBaseToken1
+    );
 }

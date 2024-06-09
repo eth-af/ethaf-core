@@ -32,4 +32,11 @@ interface IEthAfPoolImmutables {
     /// also prevents out-of-range liquidity from being used to prevent adding in-range liquidity to a pool
     /// @return The max amount of liquidity per tick
     function maxLiquidityPerTick() external view returns (uint128);
+
+    function poolTokenSettings() external view returns (bytes32 settings);
+
+    function getPoolTokenSettings() external view returns (
+        bool isBaseToken0,
+        bool isBaseToken1
+    );
 }

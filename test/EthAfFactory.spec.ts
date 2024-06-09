@@ -6,6 +6,8 @@ import { expect } from './shared/expect'
 import snapshotGasCost from './shared/snapshotGasCost'
 
 import { FeeAmount, getCreate2Address, TICK_SPACINGS } from './shared/utilities'
+import { toBytes32 } from './../scripts/utils/strings'
+import { FactoryTokenSettings, PoolTokenSettings } from './shared/tokenSettings'
 
 const { constants } = ethers
 
@@ -81,7 +83,8 @@ describe('EthAfFactory', () => {
   async function createAndCheckPool(
     tokens: [string, string],
     feeAmount: FeeAmount,
-    tickSpacing: number = TICK_SPACINGS[feeAmount]
+    tickSpacing: number = TICK_SPACINGS[feeAmount],
+    expectedPoolTokenSettings:any = undefined
   ) {
     const create2Address = getCreate2Address(factory.address, tokens, feeAmount, poolBytecode)
     const create = factory.createPool(tokens[0], tokens[1], feeAmount)
@@ -106,6 +109,10 @@ describe('EthAfFactory', () => {
     expect(await pool.token1(), 'pool token1').to.eq(TEST_ADDRESSES[1])
     expect(await pool.fee(), 'pool fee').to.eq(feeAmount)
     expect(await pool.tickSpacing(), 'pool tick spacing').to.eq(tickSpacing)
+
+    if(!!expectedPoolTokenSettings) {
+      expect(await pool.poolTokenSettings(), 'pool token settings').to.eq(expectedPoolTokenSettings)
+    }
   }
 
   describe('#createPool', () => {
@@ -142,6 +149,12 @@ describe('EthAfFactory', () => {
 
     it('gas', async () => {
       await snapshotGasCost(factory.createPool(TEST_ADDRESSES[0], TEST_ADDRESSES[1], FeeAmount.MEDIUM))
+    })
+
+    it('succeeds when factory has no token settings', async () => {
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.NO_SETTING)
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.NO_SETTING)
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN)
     })
   })
 
@@ -194,6 +207,166 @@ describe('EthAfFactory', () => {
     it('enables pool creation', async () => {
       await factory.enableFeeAmount(250, 15)
       await createAndCheckPool([TEST_ADDRESSES[0], TEST_ADDRESSES[1]], 250, 15)
+    })
+  })
+
+  describe('#setTokenSettings', () => {
+    it('fails if caller is not owner', async () => {
+      await expect(factory.connect(other).setTokenSettings([])).to.be.reverted
+    })
+    it('sets the token settings mapping', async () => {
+      await factory.setTokenSettings([{
+        token: TEST_ADDRESSES[0],
+        settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
+      }])
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.NO_SETTING)
+    })
+    it('emits an event', async () => {
+      await expect(factory.setTokenSettings([{
+        token: TEST_ADDRESSES[0],
+        settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
+      }])).to.emit(factory, 'TokenSettingsSet').withArgs(TEST_ADDRESSES[0], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
+    })
+    it('can create pool with token0 base token pt 1', async () => {
+      await factory.setTokenSettings([{
+        token: TEST_ADDRESSES[0],
+        settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
+      }])
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
+    })
+    it('can create pool with token1 base token pt 1', async () => {
+      await factory.setTokenSettings([{
+        token: TEST_ADDRESSES[1],
+        settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
+      }])
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
+    })
+    it('can create pool with neither base token pt 1', async () => {
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN)
+    })
+    it('can create pool with neither base token pt 2', async () => {
+      await factory.setTokenSettings([
+        {
+          token: TEST_ADDRESSES[0],
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
+        },
+        {
+          token: TEST_ADDRESSES[1],
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
+        },
+      ])
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN)
+    })
+    it('can create pool with token0 base token pt 2', async () => {
+      await factory.setTokenSettings([{
+        token: TEST_ADDRESSES[0],
+        settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK,
+      }])
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
+    })
+    it('can create pool with token1 base token pt 2', async () => {
+      await factory.setTokenSettings([{
+        token: TEST_ADDRESSES[1],
+        settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK,
+      }])
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
+    })
+    it('can create pool with neither base token pt 3', async () => {
+      await factory.setTokenSettings([
+        {
+          token: TEST_ADDRESSES[0],
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK,
+        },
+        {
+          token: TEST_ADDRESSES[1],
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK,
+        },
+      ])
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN)
+    })
+    it('can create pool with token0 base token pt 3', async () => {
+      await factory.setTokenSettings([
+        {
+          token: TEST_ADDRESSES[0],
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK, // usd
+        },
+        {
+          token: TEST_ADDRESSES[1],
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK, // eth
+        },
+      ])
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
+    })
+    it('can create pool with token1 base token pt 3', async () => {
+      await factory.setTokenSettings([
+        {
+          token: TEST_ADDRESSES[0],
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK, // eth
+        },
+        {
+          token: TEST_ADDRESSES[1],
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK, // usd
+        },
+      ])
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
+    })
+  })
+
+  describe('#setTokenPairSettings', () => {
+    it('fails if caller is not owner', async () => {
+      await expect(factory.connect(other).setTokenPairSettings([])).to.be.reverted
+    })
+    it('sets the token pair settings mapping', async () => {
+      await factory.setTokenPairSettings([{
+        token0: TEST_ADDRESSES[0],
+        token1: TEST_ADDRESSES[1],
+        settings: PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK,
+      }])
+      expect(await factory.tokenPairSettings(TEST_ADDRESSES[0], TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
+    })
+    it('emits an event', async () => {
+      await expect(factory.setTokenPairSettings([{
+        token0: TEST_ADDRESSES[0],
+        token1: TEST_ADDRESSES[1],
+        settings: PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK,
+      }])).to.emit(factory, 'TokenPairSettingsSet').withArgs(TEST_ADDRESSES[0], TEST_ADDRESSES[1], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
+    })
+    it('can create pool with token0 base token pt 1', async () => {
+      await factory.setTokenPairSettings([{
+        token0: TEST_ADDRESSES[0],
+        token1: TEST_ADDRESSES[1],
+        settings: PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK,
+      }])
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
+    })
+    it('can create pool with token1 base token pt 1', async () => {
+      await factory.setTokenPairSettings([{
+        token0: TEST_ADDRESSES[0],
+        token1: TEST_ADDRESSES[1],
+        settings: PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK,
+      }])
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
+    })
+    it('reverts if both tokens are base', async () => {
+      await factory.setTokenPairSettings([{
+        token0: TEST_ADDRESSES[0],
+        token1: TEST_ADDRESSES[1],
+        settings: toBytes32(3)
+      }])
+      await expect(
+        factory.createPool(TEST_ADDRESSES[0], TEST_ADDRESSES[1], FeeAmount.LOW)
+      ).to.be.reverted
     })
   })
 })

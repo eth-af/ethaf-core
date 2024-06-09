@@ -26,6 +26,9 @@ import './interfaces/callback/IEthAfMintCallback.sol';
 import './interfaces/callback/IEthAfSwapCallback.sol';
 import './interfaces/callback/IEthAfFlashCallback.sol';
 
+import './libraries/PoolTokenSettings.sol';
+
+
 contract EthAfPool is IEthAfPool, NoDelegateCall {
     using LowGasSafeMath for uint256;
     using LowGasSafeMath for int256;
@@ -97,6 +100,13 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
     /// @inheritdoc IEthAfPoolState
     Oracle.Observation[65535] public override observations;
 
+    bytes32 public override poolTokenSettings;
+
+    // / @inheritdoc IEthAfPoolState
+    uint256 public swapFeesAccumulated0;
+    // // @inheritdoc IEthAfPoolState
+    uint256 public swapFeesAccumulated1;
+
     /// @dev Mutually exclusive reentrancy protection into the pool to/from a method. This method also prevents entrance
     /// to a function before the pool is initialized. The reentrancy guard is required throughout the contract because
     /// we use balance checks to determine the payment status of interactions such as mint, swap and flash.
@@ -115,10 +125,13 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
 
     constructor() {
         int24 _tickSpacing;
-        (factory, token0, token1, fee, _tickSpacing) = IEthAfFactory(msg.sender).parameters();
+        (factory, token0, token1, fee, _tickSpacing, poolTokenSettings) = IEthAfFactory(msg.sender).parameters();
         tickSpacing = _tickSpacing;
 
         maxLiquidityPerTick = Tick.tickSpacingToMaxLiquidityPerTick(_tickSpacing);
+
+        (bool isBaseToken0, bool isBaseToken1) = getPoolTokenSettings();
+        require(!(isBaseToken0 && isBaseToken1)); // cannot both be base tokens
     }
 
     /// @dev Common checks for valid tick inputs.
@@ -518,6 +531,7 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         int24 tickUpper,
         uint128 amount
     ) external override lock returns (uint256 amount0, uint256 amount1) {
+        // modify position
         (Position.Info storage position, int256 amount0Int, int256 amount1Int) =
             _modifyPosition(
                 ModifyPositionParams({
@@ -531,6 +545,7 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         amount0 = uint256(-amount0Int);
         amount1 = uint256(-amount1Int);
 
+        // accumulate rewards
         if (amount0 > 0 || amount1 > 0) {
             (position.tokensOwed0, position.tokensOwed1) = (
                 position.tokensOwed0 + uint128(amount0),
@@ -685,8 +700,16 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
             }
 
             // update global fee tracker
-            if (state.liquidity > 0)
-                state.feeGrowthGlobalX128 += FullMath.mulDiv(step.feeAmount, FixedPoint128.Q128, state.liquidity);
+            {
+            (bool isBaseToken0, bool isBaseToken1) = getPoolTokenSettings();
+            if( (zeroForOne && isBaseToken0) || (!zeroForOne && isBaseToken1)) {
+                state.feeGrowthGlobalX128 += step.feeAmount;
+            } else {
+                if (state.liquidity > 0) {
+                    state.feeGrowthGlobalX128 += FullMath.mulDiv(step.feeAmount, FixedPoint128.Q128, state.liquidity);
+                }
+            }
+            }
 
             // shift tick if we reached the next price
             if (state.sqrtPriceX96 == step.sqrtPriceNextX96) {
@@ -705,11 +728,25 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
                         );
                         cache.computedLatestObservation = true;
                     }
+                    // do not reward fees for base token
+                    uint256 feeGrowth0;
+                    uint256 feeGrowth1;
+                    {
+                    (bool isBaseToken0, bool isBaseToken1) = getPoolTokenSettings();
+                    feeGrowth0 = (isBaseToken0
+                        ? 0
+                        : (zeroForOne ? state.feeGrowthGlobalX128 : feeGrowthGlobal0X128)
+                    );
+                    feeGrowth1 = (isBaseToken1
+                        ? 0
+                        : (zeroForOne ? feeGrowthGlobal1X128 : state.feeGrowthGlobalX128)
+                    );
+                    }
                     int128 liquidityNet =
                         ticks.cross(
                             step.tickNext,
-                            (zeroForOne ? state.feeGrowthGlobalX128 : feeGrowthGlobal0X128),
-                            (zeroForOne ? feeGrowthGlobal1X128 : state.feeGrowthGlobalX128),
+                            feeGrowth0,
+                            feeGrowth1,
                             cache.secondsPerLiquidityCumulativeX128,
                             cache.tickCumulative,
                             cache.blockTimestamp
@@ -753,19 +790,34 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         // update liquidity if it changed
         if (cache.liquidityStart != state.liquidity) liquidity = state.liquidity;
 
-        // update fee growth global and, if necessary, protocol fees
-        // overflow is acceptable, protocol has to withdraw before it hits type(uint128).max fees
-        if (zeroForOne) {
-            feeGrowthGlobal0X128 = state.feeGrowthGlobalX128;
-            if (state.protocolFee > 0) protocolFees.token0 += state.protocolFee;
-        } else {
-            feeGrowthGlobal1X128 = state.feeGrowthGlobalX128;
-            if (state.protocolFee > 0) protocolFees.token1 += state.protocolFee;
-        }
-
+        // calculate final amounts
         (amount0, amount1) = zeroForOne == exactInput
             ? (amountSpecified - state.amountSpecifiedRemaining, state.amountCalculated)
             : (state.amountCalculated, amountSpecified - state.amountSpecifiedRemaining);
+
+        // update fee growth global and, if necessary, protocol fees
+        // overflow is acceptable, protocol has to withdraw before it hits type(uint128).max fees
+        {
+        // do not reward fees for base token
+        (bool isBaseToken0, bool isBaseToken1) = getPoolTokenSettings();
+        if (zeroForOne) {
+            if(isBaseToken0) {
+                uint256 feeAmount = uint256(amount0) - uint256(state.protocolFee);
+                swapFeesAccumulated0 += feeAmount * uint256(fee) / 1e6;
+            } else {
+                feeGrowthGlobal0X128 = state.feeGrowthGlobalX128;
+            }
+            if (state.protocolFee > 0) protocolFees.token0 += state.protocolFee;
+        } else {
+            if(isBaseToken1) {
+                uint256 feeAmount = uint256(amount1) - uint256(state.protocolFee);
+                swapFeesAccumulated1 += feeAmount * uint256(fee) / 1e6;
+            } else {
+                feeGrowthGlobal1X128 = state.feeGrowthGlobalX128;
+            }
+            if (state.protocolFee > 0) protocolFees.token1 += state.protocolFee;
+        }
+        }
 
         // do the transfers and collect payment
         if (zeroForOne) {
@@ -793,19 +845,25 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         uint256 amount1,
         bytes calldata data
     ) external override lock noDelegateCall {
+        // math
+        uint256 paid0;
+        uint256 paid1;
         uint128 _liquidity = liquidity;
         require(_liquidity > 0, 'L');
-
+        { // scope
         uint256 fee0 = FullMath.mulDivRoundingUp(amount0, fee, 1e6);
         uint256 fee1 = FullMath.mulDivRoundingUp(amount1, fee, 1e6);
         uint256 balance0Before = balance0();
         uint256 balance1Before = balance1();
 
+        // optimistic transfer out
         if (amount0 > 0) TransferHelper.safeTransfer(token0, recipient, amount0);
         if (amount1 > 0) TransferHelper.safeTransfer(token1, recipient, amount1);
 
+        // flash callback
         IEthAfFlashCallback(msg.sender).ethafFlashCallback(fee0, fee1, data);
 
+        // math
         uint256 balance0After = balance0();
         uint256 balance1After = balance1();
 
@@ -813,20 +871,31 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         require(balance1Before.add(fee1) <= balance1After, 'F1');
 
         // sub is safe because we know balanceAfter is gt balanceBefore by at least fee
-        uint256 paid0 = balance0After - balance0Before;
-        uint256 paid1 = balance1After - balance1Before;
+        paid0 = balance0After - balance0Before;
+        paid1 = balance1After - balance1Before;
+        }
 
+        // distribute rewards
+        (bool isBaseToken0, bool isBaseToken1) = getPoolTokenSettings();
         if (paid0 > 0) {
             uint8 feeProtocol0 = slot0.feeProtocol % 16;
             uint256 fees0 = feeProtocol0 == 0 ? 0 : paid0 / feeProtocol0;
             if (uint128(fees0) > 0) protocolFees.token0 += uint128(fees0);
-            feeGrowthGlobal0X128 += FullMath.mulDiv(paid0 - fees0, FixedPoint128.Q128, _liquidity);
+            if(isBaseToken0) {
+                swapFeesAccumulated0 += (paid0 - fees0);
+            } else {
+                feeGrowthGlobal0X128 += FullMath.mulDiv(paid0 - fees0, FixedPoint128.Q128, _liquidity);
+            }
         }
         if (paid1 > 0) {
             uint8 feeProtocol1 = slot0.feeProtocol >> 4;
             uint256 fees1 = feeProtocol1 == 0 ? 0 : paid1 / feeProtocol1;
             if (uint128(fees1) > 0) protocolFees.token1 += uint128(fees1);
-            feeGrowthGlobal1X128 += FullMath.mulDiv(paid1 - fees1, FixedPoint128.Q128, _liquidity);
+            if(isBaseToken1) {
+                swapFeesAccumulated1 += (paid1 - fees1);
+            } else {
+                feeGrowthGlobal1X128 += FullMath.mulDiv(paid1 - fees1, FixedPoint128.Q128, _liquidity);
+            }
         }
 
         emit Flash(msg.sender, recipient, amount0, amount1, paid0, paid1);
@@ -864,5 +933,42 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         }
 
         emit CollectProtocol(msg.sender, recipient, amount0, amount1);
+    }
+
+    /// @inheritdoc IEthAfPoolActions
+    function collectBaseToken() external override lock returns (
+        address token0_,
+        address token1_,
+        bool isBaseToken0,
+        bool isBaseToken1
+    ) {
+        address distributor = IEthAfFactory(factory).swapFeeDistributor();
+        require(msg.sender == distributor);
+
+        token0_ = token0;
+        token1_ = token1;
+
+        uint256 amount = swapFeesAccumulated0;
+        if(amount > 0) {
+            TransferHelper.safeTransfer(token0_, distributor, amount);
+            swapFeesAccumulated0 = 0;
+        }
+
+        amount = swapFeesAccumulated1;
+        if(amount > 0) {
+            TransferHelper.safeTransfer(token1_, distributor, amount);
+            swapFeesAccumulated1 = 0;
+        }
+
+        (isBaseToken0, isBaseToken1) = getPoolTokenSettings();
+    }
+
+    function getPoolTokenSettings() public view override returns (
+        bool isBaseToken0,
+        bool isBaseToken1
+    ) {
+        bytes32 settings = poolTokenSettings;
+        isBaseToken0 = PoolTokenSettings.isBaseToken0(settings);
+        isBaseToken1 = PoolTokenSettings.isBaseToken1(settings);
     }
 }

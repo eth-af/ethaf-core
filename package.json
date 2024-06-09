@@ -5,7 +5,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "1.0.1",
+  "version": "1.0.2",
   "homepage": "https://tbd",
   "keywords": [
     "ethaf",
@@ -39,6 +39,7 @@
     "ethereum-waffle": "^3.0.2",
     "ethers": "^5.0.8",
     "hardhat": "^2.2.0",
+    "hardhat-contract-sizer": "^2.8.0",
     "hardhat-typechain": "^0.3.5",
     "mocha": "^6.2.2",
     "mocha-chai-jest-snapshot": "^1.1.0",
@@ -49,8 +50,7 @@
     "ts-generator": "^0.1.1",
     "ts-node": "^8.5.4",
     "typechain": "^4.0.0",
-    "typescript": "^3.7.3",
-    "hardhat-contract-sizer": "^2.8.0"
+    "typescript": "^3.7.3"
   },
   "scripts": {
     "compile": "hardhat compile",
