@@ -9,6 +9,9 @@ import './NoDelegateCall.sol';
 
 import './EthAfPool.sol';
 
+import './libraries/FactoryTokenSettings.sol';
+import './libraries/PoolTokenSettings.sol';
+
 
 /// @title Canonical ETH AF factory
 /// @notice Deploys ETH AF pools and manages ownership and control over pool protocol fees
@@ -40,13 +43,6 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
 
     mapping(address => bytes32) public tokenSettings;
     mapping(address => mapping(address => bytes32)) public tokenPairSettings;
-
-    bytes32 public constant IS_BASE_TOKEN_USD_MASK = bytes32(uint256(1));
-    bytes32 public constant IS_BASE_TOKEN_ETH_MASK = bytes32(uint256(2));
-
-    bytes32 public constant IS_TOKEN0_BASE_TOKEN_MASK = bytes32(uint256(1));
-    bytes32 public constant IS_TOKEN1_BASE_TOKEN_MASK = bytes32(uint256(2));
-    //bytes32 public constant IS_TOKEN0_BASE_TOKEN_MASK = bytes32(uint256(4));
 
     constructor(
         address _poolDeployerModule
@@ -113,24 +109,24 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         bytes32 tokenSettings1 = tokenSettings[token1];
         poolTokenSettings = bytes32(uint256(0));
         // if only one token is USD pegged, use that as the base token
-        bool isBaseTokenUSD0 = (tokenSettings0 & IS_BASE_TOKEN_USD_MASK) != 0;
-        bool isBaseTokenUSD1 = (tokenSettings1 & IS_BASE_TOKEN_USD_MASK) != 0;
+        bool isBaseTokenUSD0 = FactoryTokenSettings.isBaseTokenUSD(tokenSettings0);
+        bool isBaseTokenUSD1 = FactoryTokenSettings.isBaseTokenUSD(tokenSettings1);
         if(isBaseTokenUSD0 && !isBaseTokenUSD1) {
-            poolTokenSettings = IS_TOKEN0_BASE_TOKEN_MASK;
+            poolTokenSettings = PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK;
         }
         else if(!isBaseTokenUSD0 && isBaseTokenUSD1) {
-            poolTokenSettings = IS_TOKEN1_BASE_TOKEN_MASK;
+            poolTokenSettings = PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK;
         }
         // if 0 or 2 are USD pegged
         else {
             // if only one token is ETH pegged, use that at the base token
-            bool isBaseTokenETH0 = (tokenSettings0 & IS_BASE_TOKEN_ETH_MASK) != 0;
-            bool isBaseTokenETH1 = (tokenSettings1 & IS_BASE_TOKEN_ETH_MASK) != 0;
+            bool isBaseTokenETH0 = FactoryTokenSettings.isBaseTokenETH(tokenSettings0);
+            bool isBaseTokenETH1 = FactoryTokenSettings.isBaseTokenETH(tokenSettings1);
             if(isBaseTokenETH0 && !isBaseTokenETH1) {
-                poolTokenSettings = IS_TOKEN0_BASE_TOKEN_MASK;
+                poolTokenSettings = PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK;
             }
             else if(!isBaseTokenETH0 && isBaseTokenETH1) {
-                poolTokenSettings = IS_TOKEN1_BASE_TOKEN_MASK;
+                poolTokenSettings = PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK;
             }
         }
     }
@@ -172,8 +168,8 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         bool isBaseTokenETH
     ) {
         bytes32 settings = tokenSettings[token];
-        isBaseTokenUSD = (settings & IS_BASE_TOKEN_USD_MASK) != 0;
-        isBaseTokenETH = (settings & IS_BASE_TOKEN_ETH_MASK) != 0;
+        isBaseTokenUSD = FactoryTokenSettings.isBaseTokenUSD(settings);
+        isBaseTokenETH = FactoryTokenSettings.isBaseTokenETH(settings);
     }
 
     struct SetTokenSettingsParam {

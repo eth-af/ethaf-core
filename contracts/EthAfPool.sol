@@ -26,6 +26,8 @@ import './interfaces/callback/IEthAfMintCallback.sol';
 import './interfaces/callback/IEthAfSwapCallback.sol';
 import './interfaces/callback/IEthAfFlashCallback.sol';
 
+import './libraries/PoolTokenSettings.sol';
+
 
 contract EthAfPool is IEthAfPool, NoDelegateCall {
     using LowGasSafeMath for uint256;
@@ -99,8 +101,6 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
     Oracle.Observation[65535] public override observations;
 
     bytes32 public override poolTokenSettings;
-    bytes32 internal constant IS_TOKEN0_BASE_TOKEN_MASK = bytes32(uint256(1));
-    bytes32 internal constant IS_TOKEN1_BASE_TOKEN_MASK = bytes32(uint256(2));
 
     // / @inheritdoc IEthAfPoolState
     uint256 public swapFeesAccumulated0;
@@ -968,7 +968,7 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         bool isBaseToken1
     ) {
         bytes32 settings = poolTokenSettings;
-        isBaseToken0 = (settings & IS_TOKEN0_BASE_TOKEN_MASK) != 0;
-        isBaseToken1 = (settings & IS_TOKEN1_BASE_TOKEN_MASK) != 0;
+        isBaseToken0 = PoolTokenSettings.isBaseToken0(settings);
+        isBaseToken1 = PoolTokenSettings.isBaseToken1(settings);
     }
 }
