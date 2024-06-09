@@ -7,6 +7,7 @@ import snapshotGasCost from './shared/snapshotGasCost'
 
 import { FeeAmount, getCreate2Address, TICK_SPACINGS } from './shared/utilities'
 import { toBytes32 } from './../scripts/utils/strings'
+import { FactoryTokenSettings, PoolTokenSettings } from './shared/tokenSettings'
 
 const { constants } = ethers
 
@@ -151,9 +152,9 @@ describe('EthAfFactory', () => {
     })
 
     it('succeeds when factory has no token settings', async () => {
-      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(toBytes32(0))
-      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(toBytes32(0))
-      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(0))
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.NO_SETTING)
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.NO_SETTING)
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN)
     })
   })
 
@@ -216,109 +217,109 @@ describe('EthAfFactory', () => {
     it('sets the token settings mapping', async () => {
       await factory.setTokenSettings([{
         token: TEST_ADDRESSES[0],
-        settings: toBytes32(1)
+        settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
       }])
-      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(toBytes32(1))
-      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(toBytes32(0))
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.NO_SETTING)
     })
     it('emits an event', async () => {
       await expect(factory.setTokenSettings([{
         token: TEST_ADDRESSES[0],
-        settings: toBytes32(1)
-      }])).to.emit(factory, 'TokenSettingsSet').withArgs(TEST_ADDRESSES[0], toBytes32(1))
+        settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
+      }])).to.emit(factory, 'TokenSettingsSet').withArgs(TEST_ADDRESSES[0], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
     })
     it('can create pool with token0 base token pt 1', async () => {
       await factory.setTokenSettings([{
         token: TEST_ADDRESSES[0],
-        settings: toBytes32(1)
+        settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
       }])
-      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(1))
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
     })
     it('can create pool with token1 base token pt 1', async () => {
       await factory.setTokenSettings([{
         token: TEST_ADDRESSES[1],
-        settings: toBytes32(1)
+        settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
       }])
-      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(2))
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
     })
     it('can create pool with neither base token pt 1', async () => {
-      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(0))
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN)
     })
     it('can create pool with neither base token pt 2', async () => {
       await factory.setTokenSettings([
         {
           token: TEST_ADDRESSES[0],
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         },
         {
           token: TEST_ADDRESSES[1],
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         },
       ])
-      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(toBytes32(1))
-      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(toBytes32(1))
-      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(0))
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN)
     })
     it('can create pool with token0 base token pt 2', async () => {
       await factory.setTokenSettings([{
         token: TEST_ADDRESSES[0],
-        settings: toBytes32(2)
+        settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK,
       }])
-      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(toBytes32(2))
-      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(1))
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
     })
     it('can create pool with token1 base token pt 2', async () => {
       await factory.setTokenSettings([{
         token: TEST_ADDRESSES[1],
-        settings: toBytes32(2)
+        settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK,
       }])
-      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(toBytes32(2))
-      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(2))
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
     })
     it('can create pool with neither base token pt 3', async () => {
       await factory.setTokenSettings([
         {
           token: TEST_ADDRESSES[0],
-          settings: toBytes32(2)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK,
         },
         {
           token: TEST_ADDRESSES[1],
-          settings: toBytes32(2)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK,
         },
       ])
-      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(toBytes32(2))
-      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(toBytes32(2))
-      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(0))
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN)
     })
     it('can create pool with token0 base token pt 3', async () => {
       await factory.setTokenSettings([
         {
           token: TEST_ADDRESSES[0],
-          settings: toBytes32(1) // usd
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK, // usd
         },
         {
           token: TEST_ADDRESSES[1],
-          settings: toBytes32(2) // eth
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK, // eth
         },
       ])
-      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(toBytes32(1))
-      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(toBytes32(2))
-      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(1))
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
     })
     it('can create pool with token1 base token pt 3', async () => {
       await factory.setTokenSettings([
         {
           token: TEST_ADDRESSES[0],
-          settings: toBytes32(2) // eth
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK, // eth
         },
         {
           token: TEST_ADDRESSES[1],
-          settings: toBytes32(1) // usd
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK, // usd
         },
       ])
-      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(toBytes32(2))
-      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(toBytes32(1))
-      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(2))
+      expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+      expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
     })
   })
 
@@ -330,32 +331,32 @@ describe('EthAfFactory', () => {
       await factory.setTokenPairSettings([{
         token0: TEST_ADDRESSES[0],
         token1: TEST_ADDRESSES[1],
-        settings: toBytes32(1)
+        settings: PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK,
       }])
-      expect(await factory.tokenPairSettings(TEST_ADDRESSES[0], TEST_ADDRESSES[1])).to.eq(toBytes32(1))
+      expect(await factory.tokenPairSettings(TEST_ADDRESSES[0], TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
     })
     it('emits an event', async () => {
       await expect(factory.setTokenPairSettings([{
         token0: TEST_ADDRESSES[0],
         token1: TEST_ADDRESSES[1],
-        settings: toBytes32(1)
-      }])).to.emit(factory, 'TokenPairSettingsSet').withArgs(TEST_ADDRESSES[0], TEST_ADDRESSES[1], toBytes32(1))
+        settings: PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK,
+      }])).to.emit(factory, 'TokenPairSettingsSet').withArgs(TEST_ADDRESSES[0], TEST_ADDRESSES[1], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
     })
     it('can create pool with token0 base token pt 1', async () => {
       await factory.setTokenPairSettings([{
         token0: TEST_ADDRESSES[0],
         token1: TEST_ADDRESSES[1],
-        settings: toBytes32(1)
+        settings: PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK,
       }])
-      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(1))
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
     })
     it('can create pool with token1 base token pt 1', async () => {
       await factory.setTokenPairSettings([{
         token0: TEST_ADDRESSES[0],
         token1: TEST_ADDRESSES[1],
-        settings: toBytes32(2)
+        settings: PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK,
       }])
-      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(2))
+      await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
     })
     it('reverts if both tokens are base', async () => {
       await factory.setTokenPairSettings([{

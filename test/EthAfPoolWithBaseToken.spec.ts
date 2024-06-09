@@ -25,6 +25,7 @@ import {
 } from './shared/utilities'
 import { toBytes32 } from './../scripts/utils/strings'
 import { poolFixture, TEST_POOL_START_TIME } from './shared/fixtures'
+import { FactoryTokenSettings, PoolTokenSettings } from './shared/tokenSettings'
 
 const { constants } = ethers
 
@@ -186,7 +187,7 @@ describe('EthAfPoolWithBaseToken', () => {
       await factory.setTokenSettings([
         {
           token: token0.address,
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         }
       ])
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
@@ -197,7 +198,7 @@ describe('EthAfPoolWithBaseToken', () => {
       await factory.setTokenSettings([
         {
           token: token1.address,
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         }
       ])
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
@@ -229,11 +230,11 @@ describe('EthAfPoolWithBaseToken', () => {
       await factory.setTokenSettings([
         {
           token: token0.address,
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         }
       ])
-      expect(await factory.tokenSettings(token0.address)).to.eq(toBytes32(1))
-      expect(await factory.tokenSettings(token1.address)).to.eq(toBytes32(0))
+      expect(await factory.tokenSettings(token0.address)).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
+      expect(await factory.tokenSettings(token1.address)).to.eq(FactoryTokenSettings.NO_SETTING)
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
       await pool.initialize(sqrtPriceX96Initial)
       await swapFeeDistributor.distributeFeesForPool(pool.address)
@@ -395,7 +396,7 @@ describe('EthAfPoolWithBaseToken', () => {
     // default test - no base tokens, no distribute
     it('can collect fees from a pool after swap pt 1', async () => {
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(0))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.NO_BASE_TOKEN)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(false)
@@ -416,11 +417,11 @@ describe('EthAfPoolWithBaseToken', () => {
       await factory.setTokenSettings([
         {
           token: token1.address,
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         }
       ])
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(2))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(true)
@@ -442,11 +443,11 @@ describe('EthAfPoolWithBaseToken', () => {
       await factory.setTokenSettings([
         {
           token: token0.address,
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         }
       ])
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(1))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(true)
       expect(tokenSettings.isBaseToken1).to.eq(false)
@@ -468,7 +469,7 @@ describe('EthAfPoolWithBaseToken', () => {
     // no base tokens - no effect
     it('can collect fees from a pool after swap pt 4', async () => {
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(0))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.NO_BASE_TOKEN)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(false)
@@ -490,11 +491,11 @@ describe('EthAfPoolWithBaseToken', () => {
       await factory.setTokenSettings([
         {
           token: token1.address,
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         }
       ])
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(2))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(true)
@@ -518,11 +519,11 @@ describe('EthAfPoolWithBaseToken', () => {
       await factory.setTokenSettings([
         {
           token: token0.address,
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         }
       ])
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(1))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(true)
       expect(tokenSettings.isBaseToken1).to.eq(false)
@@ -545,7 +546,7 @@ describe('EthAfPoolWithBaseToken', () => {
     // default test - no base tokens, no distribute
     it('can collect fees from a pool after swap pt 7', async () => {
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(0))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.NO_BASE_TOKEN)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(false)
@@ -567,11 +568,11 @@ describe('EthAfPoolWithBaseToken', () => {
       await factory.setTokenSettings([
         {
           token: token1.address,
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         }
       ])
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(2))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(true)
@@ -595,11 +596,11 @@ describe('EthAfPoolWithBaseToken', () => {
       await factory.setTokenSettings([
         {
           token: token0.address,
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         }
       ])
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(1))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(true)
       expect(tokenSettings.isBaseToken1).to.eq(false)
@@ -619,7 +620,7 @@ describe('EthAfPoolWithBaseToken', () => {
     // no base tokens - no effect
     it('can collect fees from a pool after swap pt 10', async () => {
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(0))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.NO_BASE_TOKEN)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(false)
@@ -641,11 +642,11 @@ describe('EthAfPoolWithBaseToken', () => {
       await factory.setTokenSettings([
         {
           token: token1.address,
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         }
       ])
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(2))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(true)
@@ -670,11 +671,11 @@ describe('EthAfPoolWithBaseToken', () => {
       await factory.setTokenSettings([
         {
           token: token0.address,
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         }
       ])
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.LOW)
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(1))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(true)
       expect(tokenSettings.isBaseToken1).to.eq(false)

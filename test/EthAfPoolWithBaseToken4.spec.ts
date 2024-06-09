@@ -26,6 +26,7 @@ import {
 } from './shared/utilities'
 import { toBytes32 } from './../scripts/utils/strings'
 import { poolFixture, TEST_POOL_START_TIME } from './shared/fixtures'
+import { FactoryTokenSettings, PoolTokenSettings } from './shared/tokenSettings'
 
 const { constants } = ethers
 
@@ -33,6 +34,7 @@ const TEST_ADDRESSES: [string, string] = [
   '0x1000000000000000000000000000000000000000',
   '0x2000000000000000000000000000000000000000',
 ]
+
 
 const createFixtureLoader = waffle.createFixtureLoader
 
@@ -103,58 +105,34 @@ describe('EthAfPoolWithBaseToken4', () => {
     await fixtureResponse.factory.setTokenSettings([
       {
         token: tkn1,
-        settings: toBytes32(1)
+        settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
       },
       {
         token: tkn2,
-        settings: toBytes32(2)
+        settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK,
       }
     ]) // others are pump tokens
-    /*
-    // non erc20s
-    const res0 = await createAndCheckPool([TEST_ADDRESSES[0], TEST_ADDRESSES[1]], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(0))
-    const pool0 = res0.pool
-    // usdb/weth pairs
-    const res1 = await createAndCheckPool([tkn1, tkn2], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(1))
-    const pool1 = res1.pool
-    const res2 = await createAndCheckPool([tkn1, tkn2], FeeAmount.MEDIUM, TICK_SPACINGS[FeeAmount.MEDIUM], toBytes32(1))
-    const pool2 = res2.pool
-    const res3 = await createAndCheckPool([tkn1, tkn2], FeeAmount.HIGH, TICK_SPACINGS[FeeAmount.HIGH], toBytes32(1))
-    const pool3 = res3.pool
-    // test combos
-    const res4 = await createAndCheckPool([tkn0, tkn1], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(2))
-    const pool4 = res4.pool
-    const res5 = await createAndCheckPool([tkn0, tkn2], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(2))
-    const pool5 = res5.pool
-    const res6 = await createAndCheckPool([tkn0, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(0))
-    const pool6 = res6.pool
-    const res7 = await createAndCheckPool([tkn1, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(1))
-    const pool7 = res7.pool
-    const res8 = await createAndCheckPool([tkn2, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(1))
-    const pool8 = res8.pool
 
-    const pools = [pool0, pool1, pool2, pool3, pool4, pool5, pool6, pool7, pool8]
-    */
     // non erc20s
-    const res0 = await createAndCheckPool([TEST_ADDRESSES[0], TEST_ADDRESSES[1]], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(0))
+    const res0 = await createAndCheckPool([TEST_ADDRESSES[0], TEST_ADDRESSES[1]], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN)
     pool0 = res0.pool
     // usdb/weth pairs
-    const res1 = await createAndCheckPool([tkn1, tkn2], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(1))
+    const res1 = await createAndCheckPool([tkn1, tkn2], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
     pool1 = res1.pool
-    const res2 = await createAndCheckPool([tkn1, tkn2], FeeAmount.MEDIUM, TICK_SPACINGS[FeeAmount.MEDIUM], toBytes32(1))
+    const res2 = await createAndCheckPool([tkn1, tkn2], FeeAmount.MEDIUM, TICK_SPACINGS[FeeAmount.MEDIUM], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
     pool2 = res2.pool
-    const res3 = await createAndCheckPool([tkn1, tkn2], FeeAmount.HIGH, TICK_SPACINGS[FeeAmount.HIGH], toBytes32(1))
+    const res3 = await createAndCheckPool([tkn1, tkn2], FeeAmount.HIGH, TICK_SPACINGS[FeeAmount.HIGH], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
     pool3 = res3.pool
     // test combos
-    const res4 = await createAndCheckPool([tkn0, tkn1], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(2))
+    const res4 = await createAndCheckPool([tkn0, tkn1], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
     pool4 = res4.pool
-    const res5 = await createAndCheckPool([tkn0, tkn2], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(2))
+    const res5 = await createAndCheckPool([tkn0, tkn2], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
     pool5 = res5.pool
-    const res6 = await createAndCheckPool([tkn0, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(0))
+    const res6 = await createAndCheckPool([tkn0, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN)
     pool6 = res6.pool
-    const res7 = await createAndCheckPool([tkn1, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(1))
+    const res7 = await createAndCheckPool([tkn1, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
     pool7 = res7.pool
-    const res8 = await createAndCheckPool([tkn2, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(1))
+    const res8 = await createAndCheckPool([tkn2, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
     pool8 = res8.pool
 
     pools = [pool0, pool1, pool2, pool3, pool4, pool5, pool6, pool7, pool8]
@@ -168,31 +146,7 @@ describe('EthAfPoolWithBaseToken4', () => {
     await pool6.initialize(sqrtPriceX96Initial)
     await pool7.initialize(sqrtPriceX96Initial)
     await pool8.initialize(sqrtPriceX96Initial)
-    /*
-    pools = fixtureResponse.pools
-    pool0 = fixtureResponse.pools[0]
-    pool1 = fixtureResponse.pools[1]
-    pool2 = fixtureResponse.pools[2]
-    pool3 = fixtureResponse.pools[3]
-    pool4 = fixtureResponse.pools[4]
-    pool5 = fixtureResponse.pools[5]
-    pool6 = fixtureResponse.pools[6]
-    pool7 = fixtureResponse.pools[7]
-    pool8 = fixtureResponse.pools[8]
-    */
-    /*
-    const poolFunctions_ = [
-      undefined,
-      createPoolFunctions({ swapTarget: swapTargetCallee, token0: token1, token1: token2, pool: pool1 }),
-      createPoolFunctions({ swapTarget: swapTargetCallee, token0: token1, token1: token2, pool: pool2 }),
-      createPoolFunctions({ swapTarget: swapTargetCallee, token0: token1, token1: token2, pool: pool3 }),
-      createPoolFunctions({ swapTarget: swapTargetCallee, token0: token0, token1: token1, pool: pool4 }),
-      createPoolFunctions({ swapTarget: swapTargetCallee, token0: token0, token1: token2, pool: pool5 }),
-      createPoolFunctions({ swapTarget: swapTargetCallee, token0: token0, token1: token3, pool: pool6 }),
-      createPoolFunctions({ swapTarget: swapTargetCallee, token0: token1, token1: token3, pool: pool7 }),
-      createPoolFunctions({ swapTarget: swapTargetCallee, token0: token2, token1: token3, pool: pool8 }),
-    ]
-    */
+
     poolFunctions = [
       undefined,
       createPoolFunctions({ swapTarget: swapTargetCallee, token0: token1, token1: token2, pool: pool1 }),
@@ -215,7 +169,6 @@ describe('EthAfPoolWithBaseToken4', () => {
 
     const flasherFactory = await ethers.getContractFactory('MockFlasher')
     mockFlasher = (await flasherFactory.deploy()) as MockFlasher
-    //mockFlasher = fixtureResponse.mockFlasher
 
     return {
       ...fixtureResponse,
@@ -238,37 +191,6 @@ describe('EthAfPoolWithBaseToken4', () => {
 
   beforeEach('deploy factory and pools', async () => {
     let fixtureResponse:any = await loadFixture(fixtureWithPools)
-    /*
-    factory = fixtureResponse.factory
-    poolDeployerModule = fixtureResponse.poolDeployerModule
-    swapFeeDistributor = fixtureResponse.swapFeeDistributor
-    token0 = fixtureResponse.token0
-    token1 = fixtureResponse.token1
-    token2 = fixtureResponse.token2
-    token3 = fixtureResponse.token3
-    createPool = fixtureResponse.createPool
-    swapTargetCallee = fixtureResponse.swapTargetCallee
-    pools = fixtureResponse.pools
-    pool0 = fixtureResponse.pools[0]
-    pool1 = fixtureResponse.pools[1]
-    pool2 = fixtureResponse.pools[2]
-    pool3 = fixtureResponse.pools[3]
-    pool4 = fixtureResponse.pools[4]
-    pool5 = fixtureResponse.pools[5]
-    pool6 = fixtureResponse.pools[6]
-    pool7 = fixtureResponse.pools[7]
-    pool8 = fixtureResponse.pools[8]
-    poolFunctions = fixtureResponse.poolFunctions
-    poolFunctions1 = fixtureResponse.poolFunctions[1]
-    poolFunctions2 = fixtureResponse.poolFunctions[2]
-    poolFunctions3 = fixtureResponse.poolFunctions[3]
-    poolFunctions4 = fixtureResponse.poolFunctions[4]
-    poolFunctions5 = fixtureResponse.poolFunctions[5]
-    poolFunctions6 = fixtureResponse.poolFunctions[6]
-    poolFunctions7 = fixtureResponse.poolFunctions[7]
-    poolFunctions8 = fixtureResponse.poolFunctions[8]
-    mockFlasher = fixtureResponse.mockFlasher
-    */
   })
 
   it('swap fee distributor is set correctly', async () => {

@@ -26,6 +26,7 @@ import {
 } from './shared/utilities'
 import { toBytes32 } from './../scripts/utils/strings'
 import { poolFixture, TEST_POOL_START_TIME } from './shared/fixtures'
+import { FactoryTokenSettings, PoolTokenSettings } from './shared/tokenSettings'
 
 const { constants } = ethers
 
@@ -169,7 +170,7 @@ describe('EthAfPoolWithBaseToken3', () => {
     it("flash test 1", async function () {
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.HIGH)
       const poolFunctions = createPoolFunctions({ swapTarget: swapTargetCallee, token0, token1, pool })
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(0))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.NO_BASE_TOKEN)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(false)
@@ -289,12 +290,12 @@ describe('EthAfPoolWithBaseToken3', () => {
       await factory.setTokenSettings([
         {
           token: token0.address,
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         }
       ])
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.HIGH)
       const poolFunctions = createPoolFunctions({ swapTarget: swapTargetCallee, token0, token1, pool })
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(1))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(true)
       expect(tokenSettings.isBaseToken1).to.eq(false)
@@ -501,12 +502,12 @@ describe('EthAfPoolWithBaseToken3', () => {
       await factory.setTokenSettings([
         {
           token: token1.address,
-          settings: toBytes32(1)
+          settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
         }
       ])
       const { pool } = await createAndCheckPool([token0.address, token1.address], FeeAmount.HIGH)
       const poolFunctions = createPoolFunctions({ swapTarget: swapTargetCallee, token0, token1, pool })
-      expect(await pool.poolTokenSettings()).to.eq(toBytes32(2))
+      expect(await pool.poolTokenSettings()).to.eq(PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(true)
