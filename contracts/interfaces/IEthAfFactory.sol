@@ -92,6 +92,17 @@ interface IEthAfFactory {
             bytes32 poolTokenSettings
         );
 
+    /// @notice Get the Blast parameters
+    function blastParameters()
+        external
+        view
+        returns (
+            address blast,
+            address blastPoints,
+            address gasCollector,
+            address pointsOperator
+        );
+
     /// @notice Updates the owner of the factory
     /// @dev Must be called by the current owner
     /// @param _owner The new owner of the factory
