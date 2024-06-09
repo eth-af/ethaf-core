@@ -238,7 +238,8 @@ describe('EthAfPoolWithBaseToken4', () => {
     it('initializes correctly', async function () {
       expect(pools.length).eq(poolsLength)
       expect(await swapFeeDistributor.nextPoolIndex()).eq(0)
-      expect(await swapFeeDistributor.safeGasPerLoop()).eq(300_000)
+      expect(await swapFeeDistributor.safeGasStartLoop()).eq(330_000)
+      expect(await swapFeeDistributor.safeGasForDistribute()).eq(300_000)
     })
 
     it('reverts if pool has non erc20s 1', async function () {
@@ -438,7 +439,7 @@ describe('EthAfPoolWithBaseToken4', () => {
       //console.log(`gasUsed: ${receipt1.gasUsed.toNumber().toLocaleString()}`)
 
       // next loop - next 4 pools
-      let p2 = swapFeeDistributor.tryDistributeFactoryLoop({gasLimit: 440_000})
+      let p2 = swapFeeDistributor.tryDistributeFactoryLoop({gasLimit: 470_000})
       let tx2 = await p2
       expect(await swapFeeDistributor.nextPoolIndex()).eq(7)
       await expect(p2).to.not.emit(pool1, "Swap") // not in this iter
@@ -467,5 +468,61 @@ describe('EthAfPoolWithBaseToken4', () => {
     })
   })
 
+  describe("setSafeGasPerLoop", function () {
+    it("cannot be set by non owner", async function () {
+      await expect(swapFeeDistributor.connect(other).setSafeGasPerLoop(1,1)).to.be.reverted
+    })
+    it("owner can set", async function () {
+      let gasLimitStart = 600_000
+      let gasLimitDistribute = 500_000
+      let p = swapFeeDistributor.setSafeGasPerLoop(gasLimitStart, gasLimitDistribute)
+      let tx = await p
+      await expect(p).to.emit(swapFeeDistributor, "SetSafeGasPerLoop").withArgs(gasLimitStart, gasLimitDistribute)
+      expect(await swapFeeDistributor.safeGasStartLoop()).eq(gasLimitStart)
+      expect(await swapFeeDistributor.safeGasForDistribute()).eq(gasLimitDistribute)
+    })
+    it('can loop using new fees', async function () {
+      let gasLimitStart = 600_000
+      let gasLimitDistribute = 500_000
+      await swapFeeDistributor.setSafeGasPerLoop(gasLimitStart, gasLimitDistribute)
 
+      const mintPosition1 = {
+        tickLower: getMinTick(TICK_SPACINGS[FeeAmount.LOW]), // full range
+        tickUpper: getMaxTick(TICK_SPACINGS[FeeAmount.LOW]),
+        liquidity: expandTo18Decimals(10_000), // ~10,000 of each token
+      }
+      await poolFunctions1.mint(wallet.address, mintPosition1.tickLower, mintPosition1.tickUpper, mintPosition1.liquidity)
+      const mintPosition2 = {
+        tickLower: getMinTick(TICK_SPACINGS[FeeAmount.MEDIUM]), // full range
+        tickUpper: getMaxTick(TICK_SPACINGS[FeeAmount.MEDIUM]),
+        liquidity: expandTo18Decimals(10_000), // ~10,000 of each token
+      }
+      await poolFunctions2.mint(wallet.address, mintPosition2.tickLower, mintPosition2.tickUpper, mintPosition2.liquidity)
+
+      const amount1_0 = WeiPerEther
+      const amount2_0 = WeiPerEther.mul(2)
+      await token1.transfer(mockFlasher.address, amount1_0)
+      await token2.transfer(mockFlasher.address, amount2_0)
+      await mockFlasher.flash(pool1.address, 0, 0) // distribute fees
+
+      const amount1_1 = WeiPerEther.mul(3)
+      const amount2_1 = WeiPerEther.mul(7)
+      await token1.transfer(mockFlasher.address, amount1_1)
+      await token2.transfer(mockFlasher.address, amount2_1)
+      await mockFlasher.flash(pool2.address, 0, 0) // distribute fees
+
+      expect(await swapFeeDistributor.nextPoolIndex()).eq(0)
+
+      // start loop - first 3 pools
+      let p1 = swapFeeDistributor.tryDistributeFactoryLoop({gasLimit: 900_000}) // same test requires more gas because higher gas limits
+      let tx1 = await p1
+      expect(await swapFeeDistributor.nextPoolIndex()).eq(3)
+      await expect(p1).to.emit(pool1, "Swap")
+      await expect(p1).to.emit(pool2, "Swap")
+      await expect(p1).to.emit(swapFeeDistributor, "SwapFeesDistributed").withArgs(pool1.address)
+      await expect(p1).to.emit(swapFeeDistributor, "SwapFeesDistributed").withArgs(pool2.address)
+      let receipt1 = await tx1.wait()
+      //console.log(`gasUsed: ${receipt1.gasUsed.toNumber().toLocaleString()}`) // uses the same amount of gas
+    })
+  })
 })

@@ -22,7 +22,8 @@ contract EthAfSwapFeeDistributor is IEthAfSwapFeeDistributor, IEthAfSwapCallback
 
     // used for looping
     uint256 public override nextPoolIndex;
-    uint256 public override safeGasPerLoop;
+    uint256 public override safeGasStartLoop;
+    uint256 public override safeGasForDistribute;
 
     constructor(
         address _factory
@@ -32,7 +33,8 @@ contract EthAfSwapFeeDistributor is IEthAfSwapFeeDistributor, IEthAfSwapCallback
 
         factory = _factory;
 
-        safeGasPerLoop = 300_000; // start gas limit found from tests
+        safeGasStartLoop = 330_000; // safe limits found from tests
+        safeGasForDistribute = 300_000;
     }
 
     // distribute functions
@@ -60,16 +62,17 @@ contract EthAfSwapFeeDistributor is IEthAfSwapFeeDistributor, IEthAfSwapCallback
 
     function tryDistributeFactoryLoop() external override {
         uint256 next = nextPoolIndex;
-        uint256 loopGas = safeGasPerLoop;
+        uint256 gasLimitStart = safeGasStartLoop;
+        uint256 gasLimitDistribute = safeGasForDistribute;
         uint256 len = IEthAfFactory(factory).allPoolsLength();
         // loop while there is gas left
-        while(gasleft() > loopGas) {
+        while(gasleft() > gasLimitStart) {
             // end and reset if out of bounds
             if(next >= len) {
                 nextPoolIndex = 0;
                 return;
             }
-            _tryDistributeFeesForPool(IEthAfFactory(factory).allPools(next), loopGas);
+            _tryDistributeFeesForPool(IEthAfFactory(factory).allPools(next), gasLimitDistribute);
             ++next;
         }
         nextPoolIndex = next;
@@ -181,9 +184,10 @@ contract EthAfSwapFeeDistributor is IEthAfSwapFeeDistributor, IEthAfSwapCallback
 
     // owner functions
 
-    function setSafeGasPerLoop(uint256 loopGas) external override {
+    function setSafeGasPerLoop(uint256 gasLimitStart, uint256 gasLimitDistribute) external override {
         require(msg.sender == owner);
-        safeGasPerLoop = loopGas;
-        emit SetSafeGasPerLoop(loopGas);
+        safeGasStartLoop = gasLimitStart;
+        safeGasForDistribute = gasLimitDistribute;
+        emit SetSafeGasPerLoop(gasLimitStart, gasLimitDistribute);
     }
 }

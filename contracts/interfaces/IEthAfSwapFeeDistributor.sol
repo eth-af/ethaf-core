@@ -11,7 +11,7 @@ interface IEthAfSwapFeeDistributor {
     /// @param newOwner The owner after the owner was changed
     event OwnerChanged(address indexed oldOwner, address indexed newOwner);
 
-    event SetSafeGasPerLoop(uint256 safeGas);
+    event SetSafeGasPerLoop(uint256 gasLimitStart, uint256 gasLimitDistribute);
 
     event SwapFeesDistributed(address indexed pool);
 
@@ -23,7 +23,9 @@ interface IEthAfSwapFeeDistributor {
 
     function nextPoolIndex() external view returns (uint256 nextPoolIndex_);
 
-    function safeGasPerLoop() external view returns (uint256 safeGasPerLoop_);
+    function safeGasStartLoop() external view returns (uint256 safeGasStartLoop_);
+
+    function safeGasForDistribute() external view returns (uint256 safeGasForDistribute_);
 
     // distribute functions
 
@@ -39,5 +41,5 @@ interface IEthAfSwapFeeDistributor {
 
     // owner functions
 
-    function setSafeGasPerLoop(uint256 loopGas) external;
+    function setSafeGasPerLoop(uint256 gasLimitStart, uint256 gasLimitDistribute) external;
 }
