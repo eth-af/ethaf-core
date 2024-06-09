@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
@@ -7,23 +7,22 @@ import './libraries/TickMath.sol';
 import './interfaces/IEthAfFactory.sol';
 import './interfaces/IERC20Minimal.sol';
 import './interfaces/IEthAfPool.sol';
+import './interfaces/IEthAfSwapFeeDistributor.sol';
 import './interfaces/callback/IEthAfSwapCallback.sol';
 import './interfaces/callback/IEthAfFlashCallback.sol';
 
 
-/// @title Canonical ETH AF factory
-/// @notice Deploys ETH AF pools and manages ownership and control over pool protocol fees
-contract EthAfSwapFeeDistributor is IEthAfSwapCallback, IEthAfFlashCallback {
+/// @title EthAfSwapFeeDistributor
+/// @notice Distributes the swap fees of EthAfPools
+contract EthAfSwapFeeDistributor is IEthAfSwapFeeDistributor, IEthAfSwapCallback, IEthAfFlashCallback {
     // / @inheritdoc IEthAfFactory
-    address public owner;
+    address public override owner;
     // / @inheritdoc IEthAfFactory
-    address public immutable factory;
+    address public immutable override factory;
 
-
-    /// @notice Emitted when the owner of the factory is changed
-    /// @param oldOwner The owner before the owner was changed
-    /// @param newOwner The owner after the owner was changed
-    event OwnerChanged(address indexed oldOwner, address indexed newOwner);
+    // used for looping
+    uint256 public override nextPoolIndex;
+    uint256 public override safeGasPerLoop;
 
     constructor(
         address _factory
@@ -32,9 +31,52 @@ contract EthAfSwapFeeDistributor is IEthAfSwapCallback, IEthAfFlashCallback {
         emit OwnerChanged(address(0), msg.sender);
 
         factory = _factory;
+
+        safeGasPerLoop = 300_000; // start gas limit found from tests
     }
 
-    function distributeFeesForPool(address pool) external {
+    // distribute functions
+
+    function distributeFeesForPool(address pool) external override {
+        _distributeFeesForPool(pool);
+    }
+
+    function distributeFeesForPools(address[] calldata pools) external override {
+        for(uint256 i = 0; i < pools.length; i++) {
+            _distributeFeesForPool(pools[i]);
+        }
+    }
+
+    function tryDistributeFeesForPool(address pool) external override returns (bool success) {
+        success = _tryDistributeFeesForPool(pool);
+    }
+
+    function tryDistributeFeesForPools(address[] calldata pools) external override returns (bool[] memory success) {
+        success = new bool[](pools.length);
+        for(uint256 i = 0; i < pools.length; i++) {
+            success[i] = _tryDistributeFeesForPool(pools[i]);
+        }
+    }
+
+    function tryDistributeFactoryLoop() external override {
+        uint256 next = nextPoolIndex;
+        uint256 loopGas = safeGasPerLoop;
+        uint256 len = IEthAfFactory(factory).allPoolsLength();
+        // loop while there is gas left
+        while(gasleft() > loopGas) {
+            // end and reset if out of bounds
+            if(next >= len) {
+                nextPoolIndex = 0;
+                return;
+            }
+            _tryDistributeFeesForPool(IEthAfFactory(factory).allPools(next), loopGas);
+            ++next;
+        }
+        nextPoolIndex = next;
+    }
+
+    // executes collect -> swap -> flash to distribute rewards
+    function _distributeFeesForPool(address pool) internal {
         // collect the tokens from the pool
         (address token0, address token1, bool isBaseToken0, bool isBaseToken1) =
             IEthAfPool(pool).collectBaseToken();
@@ -69,7 +111,30 @@ contract EthAfSwapFeeDistributor is IEthAfSwapCallback, IEthAfFlashCallback {
         if(balance0 > 0 || balance1 > 0) {
             IEthAfPool(pool).flash(address(this), 0, 0, "");
         }
+        emit SwapFeesDistributed(pool);
     }
+
+    // helper functions
+
+    function _tryDistributeFeesForPool(address pool) internal returns (bool success) {
+        // self call, allow to fail
+
+        // encode calldata
+        bytes memory data = abi.encodeWithSelector(EthAfSwapFeeDistributor.distributeFeesForPool.selector, pool);
+        // call self
+        (success, ) = address(this).call(data);
+    }
+
+    function _tryDistributeFeesForPool(address pool, uint256 gaslimit) internal returns (bool success) {
+        // self call, allow to fail
+
+        // encode calldata
+        bytes memory data = abi.encodeWithSelector(EthAfSwapFeeDistributor.distributeFeesForPool.selector, pool);
+        // call self
+        (success, ) = address(this).call{gas: gaslimit}(data);
+    }
+
+    // callbacks
 
     /// @notice Called by the pool during a swap.
     /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
@@ -112,5 +177,13 @@ contract EthAfSwapFeeDistributor is IEthAfSwapCallback, IEthAfFlashCallback {
         if(balance > 0) {
             TransferHelper.safeTransfer(token, msg.sender, balance);
         }
+    }
+
+    // owner functions
+
+    function setSafeGasPerLoop(uint256 loopGas) external override {
+        require(msg.sender == owner);
+        safeGasPerLoop = loopGas;
+        emit SetSafeGasPerLoop(loopGas);
     }
 }

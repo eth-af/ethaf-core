@@ -357,5 +357,15 @@ describe('EthAfFactory', () => {
       }])
       await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], toBytes32(2))
     })
+    it('reverts if both tokens are base', async () => {
+      await factory.setTokenPairSettings([{
+        token0: TEST_ADDRESSES[0],
+        token1: TEST_ADDRESSES[1],
+        settings: toBytes32(3)
+      }])
+      await expect(
+        factory.createPool(TEST_ADDRESSES[0], TEST_ADDRESSES[1], FeeAmount.LOW)
+      ).to.be.reverted
+    })
   })
 })
