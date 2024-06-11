@@ -4,13 +4,16 @@ pragma abicoder v2;
 
 import './interfaces/IEthAfFactory.sol';
 
-import './EthAfPoolDeployerModule.sol';
+import './modules/EthAfPoolDeployerModule.sol';
 import './NoDelegateCall.sol';
 
 import './EthAfPool.sol';
 
 import './libraries/FactoryTokenSettings.sol';
 import './libraries/PoolTokenSettings.sol';
+
+import './interfaces/external/Blast/IBlast.sol';
+import './interfaces/external/Blast/IBlastPoints.sol';
 
 
 /// @title Canonical ETH AF factory
@@ -38,6 +41,15 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
 
     Parameters public override parameters;
 
+    struct BlastParameters {
+        address blast;
+        address blastPoints;
+        address gasCollector;
+        address pointsOperator;
+    }
+
+    BlastParameters public override blastParameters;
+
     /// @inheritdoc IEthAfFactory
     address public override swapFeeDistributor;
 
@@ -45,7 +57,11 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
     mapping(address => mapping(address => bytes32)) public tokenPairSettings;
 
     constructor(
-        address _poolDeployerModule
+        address _poolDeployerModule,
+        address blast,
+        address blastPoints,
+        address gasCollector,
+        address pointsOperator
     ) {
         owner = msg.sender;
         emit OwnerChanged(address(0), msg.sender);
@@ -61,6 +77,26 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         poolDeployerModule = _poolDeployerModule;
 
         parameters.factory = address(this);
+
+        blastParameters.blast = blast;
+        blastParameters.blastPoints = blastPoints;
+        blastParameters.gasCollector = gasCollector;
+        blastParameters.pointsOperator = pointsOperator;
+
+        // calls to setup blast
+        // allow these calls to fail on local fork
+        // check success after deployment
+        if(blast != address(0)) {
+            blast.call(abi.encodeWithSelector(IBlast.configureAutomaticYield.selector));
+            blast.call(abi.encodeWithSelector(IBlast.configureClaimableGas.selector));
+            if(gasCollector != address(0)) {
+                blast.call(abi.encodeWithSelector(IBlast.configureGovernor.selector, gasCollector));
+            }
+
+        }
+        if(blastPoints != address(0) && pointsOperator != address(0)) {
+            blastPoints.call(abi.encodeWithSelector(IBlastPoints.configurePointsOperator.selector, pointsOperator));
+        }
     }
 
     /// @inheritdoc IEthAfFactory
@@ -129,6 +165,11 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
                 poolTokenSettings = PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK;
             }
         }
+        // check native yield
+        bool supportsNativeYield = FactoryTokenSettings.supportsNativeYield(tokenSettings0);
+        if(supportsNativeYield) poolTokenSettings = (poolTokenSettings | PoolTokenSettings.TOKEN0_SUPPORTS_NATIVE_YIELD_MASK);
+        supportsNativeYield = FactoryTokenSettings.supportsNativeYield(tokenSettings1);
+        if(supportsNativeYield) poolTokenSettings = (poolTokenSettings | PoolTokenSettings.TOKEN1_SUPPORTS_NATIVE_YIELD_MASK);
     }
 
     /// @inheritdoc IEthAfFactory

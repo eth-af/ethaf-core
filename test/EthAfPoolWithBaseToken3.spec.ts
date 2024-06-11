@@ -29,6 +29,7 @@ import { poolFixture, TEST_POOL_START_TIME } from './shared/fixtures'
 import { FactoryTokenSettings, PoolTokenSettings } from './shared/tokenSettings'
 
 const { constants } = ethers
+const { AddressZero } = constants
 
 const TEST_ADDRESSES: [string, string] = [
   '0x1000000000000000000000000000000000000000',
@@ -64,7 +65,8 @@ describe('EthAfPoolWithBaseToken3', () => {
     const poolDeployerModuleFactory = await ethers.getContractFactory('EthAfPoolDeployerModule')
     const poolDeployerModule = (await poolDeployerModuleFactory.deploy()) as EthAfPoolDeployerModule
     const factoryFactory = await ethers.getContractFactory('EthAfFactory')
-    const factory = (await factoryFactory.deploy(poolDeployerModule.address)) as EthAfFactory
+    //const factory = (await factoryFactory.deploy(poolDeployerModule.address)) as EthAfFactory
+    const factory = (await factoryFactory.deploy(poolDeployerModule.address, AddressZero, AddressZero, AddressZero, AddressZero)) as EthAfFactory
     const swapFeeDistributorFactory = await ethers.getContractFactory('EthAfSwapFeeDistributor')
     const swapFeeDistributor = (await swapFeeDistributorFactory.deploy(factory.address)) as EthAfSwapFeeDistributor
     await factory.setSwapFeeDistributor(swapFeeDistributor.address)

@@ -11,6 +11,9 @@ import { EthAfSwapFeeDistributor } from '../../typechain/EthAfSwapFeeDistributor
 
 import { Fixture } from 'ethereum-waffle'
 
+const { constants } = ethers
+const { AddressZero } = constants
+
 interface FactoryFixture {
   factory: EthAfFactory
   poolDeployerModule: EthAfPoolDeployerModule
@@ -21,7 +24,8 @@ async function factoryFixture(): Promise<FactoryFixture> {
   const poolDeployerModuleFactory = await ethers.getContractFactory('EthAfPoolDeployerModule')
   const poolDeployerModule = (await poolDeployerModuleFactory.deploy()) as EthAfPoolDeployerModule
   const factoryFactory = await ethers.getContractFactory('EthAfFactory')
-  const factory = (await factoryFactory.deploy(poolDeployerModule.address)) as EthAfFactory
+  //const factory = (await factoryFactory.deploy(poolDeployerModule.address)) as EthAfFactory
+  const factory = (await factoryFactory.deploy(poolDeployerModule.address, AddressZero, AddressZero, AddressZero, AddressZero)) as EthAfFactory
   const swapFeeDistributorFactory = await ethers.getContractFactory('EthAfSwapFeeDistributor')
   const swapFeeDistributor = (await swapFeeDistributorFactory.deploy(factory.address)) as EthAfSwapFeeDistributor
   await factory.setSwapFeeDistributor(swapFeeDistributor.address)

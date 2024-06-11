@@ -14,8 +14,9 @@ library FactoryTokenSettings {
     // else no base tokens
     // there can also be overrides set per pair
 
-    bytes32 internal constant IS_BASE_TOKEN_USD_MASK = bytes32(uint256(1));
-    bytes32 internal constant IS_BASE_TOKEN_ETH_MASK = bytes32(uint256(2));
+    bytes32 internal constant IS_BASE_TOKEN_USD_MASK     = bytes32(uint256(1));
+    bytes32 internal constant IS_BASE_TOKEN_ETH_MASK     = bytes32(uint256(2));
+    bytes32 internal constant SUPPORTS_NATIVE_YIELD_MASK = bytes32(uint256(4));
 
     function isBaseTokenUSD(bytes32 factoryTokenSettings) internal pure returns (bool isBaseTokenUSD_) {
         isBaseTokenUSD_ = (factoryTokenSettings & IS_BASE_TOKEN_USD_MASK) != 0;
@@ -23,6 +24,10 @@ library FactoryTokenSettings {
 
     function isBaseTokenETH(bytes32 factoryTokenSettings) internal pure returns (bool isBaseTokenETH_) {
         isBaseTokenETH_ = (factoryTokenSettings & IS_BASE_TOKEN_ETH_MASK) != 0;
+    }
+
+    function supportsNativeYield(bytes32 factoryTokenSettings) internal pure returns (bool supportsNativeYield_) {
+        supportsNativeYield_ = (factoryTokenSettings & SUPPORTS_NATIVE_YIELD_MASK) != 0;
     }
 
 }

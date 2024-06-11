@@ -28,6 +28,10 @@ import './interfaces/callback/IEthAfFlashCallback.sol';
 
 import './libraries/PoolTokenSettings.sol';
 
+import './interfaces/external/Blast/IBlast.sol';
+import './interfaces/external/Blast/IBlastPoints.sol';
+import './interfaces/external/Blast/IERC20Rebasing.sol';
+
 
 contract EthAfPool is IEthAfPool, NoDelegateCall {
     using LowGasSafeMath for uint256;
@@ -125,13 +129,54 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
 
     constructor() {
         int24 _tickSpacing;
-        (factory, token0, token1, fee, _tickSpacing, poolTokenSettings) = IEthAfFactory(msg.sender).parameters();
+        address tkn0;
+        address tkn1;
+
+        (
+            factory,
+            tkn0,
+            tkn1,
+            fee,
+            _tickSpacing,
+            poolTokenSettings
+        ) = IEthAfFactory(msg.sender).parameters();
+        token0 = tkn0;
+        token1 = tkn1;
         tickSpacing = _tickSpacing;
 
         maxLiquidityPerTick = Tick.tickSpacingToMaxLiquidityPerTick(_tickSpacing);
 
-        (bool isBaseToken0, bool isBaseToken1) = getPoolTokenSettings();
+        (bool isBaseToken0, bool isBaseToken1, bool token0SupportsNativeYield, bool token1SupportsNativeYield) =
+            getPoolTokenSettingsFull();
         require(!(isBaseToken0 && isBaseToken1)); // cannot both be base tokens
+
+        if(token0SupportsNativeYield) {
+            tkn0.call(abi.encodeWithSelector(IERC20Rebasing.configure.selector, IERC20Rebasing.YieldMode.CLAIMABLE));
+        }
+        if(token1SupportsNativeYield) {
+            tkn1.call(abi.encodeWithSelector(IERC20Rebasing.configure.selector, IERC20Rebasing.YieldMode.CLAIMABLE));
+        }
+
+        {
+        (
+            address blast,
+            address blastPoints,
+            address gasCollector,
+            address pointsOperator
+        ) = IEthAfFactory(msg.sender).blastParameters();
+        // calls to setup blast
+        // allow these calls to fail on local fork
+        // check success after deployment
+        if(blast != address(0)) {
+            blast.call(abi.encodeWithSelector(IBlast.configureClaimableGas.selector));
+            if(gasCollector != address(0)) {
+                blast.call(abi.encodeWithSelector(IBlast.configureGovernor.selector, gasCollector));
+            }
+        }
+        if(blastPoints != address(0) && pointsOperator != address(0)) {
+            blastPoints.call(abi.encodeWithSelector(IBlastPoints.configurePointsOperator.selector, pointsOperator));
+        }
+        }
     }
 
     /// @dev Common checks for valid tick inputs.
@@ -948,19 +993,40 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         token0_ = token0;
         token1_ = token1;
 
+        bool token0SupportsNativeYield;
+        bool token1SupportsNativeYield;
+        (isBaseToken0, isBaseToken1, token0SupportsNativeYield, token1SupportsNativeYield) = getPoolTokenSettingsFull();
+
         uint256 amount = swapFeesAccumulated0;
+        if(token0SupportsNativeYield) {
+            uint256 claimableAmount = IERC20Rebasing(token0_).getClaimableAmount(address(this));
+            if(claimableAmount > 0) {
+                uint256 bal1 = balance0();
+                IERC20Rebasing(token0_).claim(address(this), claimableAmount);
+                uint256 diff = balance0() - bal1;
+                if(diff > 0) amount += diff;
+            }
+        }
         if(amount > 0) {
             TransferHelper.safeTransfer(token0_, distributor, amount);
             swapFeesAccumulated0 = 0;
         }
 
         amount = swapFeesAccumulated1;
+        if(token1SupportsNativeYield) {
+            uint256 claimableAmount = IERC20Rebasing(token1_).getClaimableAmount(address(this));
+            if(claimableAmount > 0) {
+                uint256 bal1 = balance1();
+                IERC20Rebasing(token1_).claim(address(this), claimableAmount);
+                uint256 diff = balance1() - bal1;
+                if(diff > 0) amount += diff;
+            }
+        }
         if(amount > 0) {
             TransferHelper.safeTransfer(token1_, distributor, amount);
             swapFeesAccumulated1 = 0;
         }
 
-        (isBaseToken0, isBaseToken1) = getPoolTokenSettings();
     }
 
     function getPoolTokenSettings() public view override returns (
@@ -970,5 +1036,18 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         bytes32 settings = poolTokenSettings;
         isBaseToken0 = PoolTokenSettings.isBaseToken0(settings);
         isBaseToken1 = PoolTokenSettings.isBaseToken1(settings);
+    }
+
+    function getPoolTokenSettingsFull() internal view returns (
+        bool isBaseToken0,
+        bool isBaseToken1,
+        bool token0SupportsNativeYield,
+        bool token1SupportsNativeYield
+    ) {
+        bytes32 settings = poolTokenSettings;
+        isBaseToken0 = PoolTokenSettings.isBaseToken0(settings);
+        isBaseToken1 = PoolTokenSettings.isBaseToken1(settings);
+        token0SupportsNativeYield = PoolTokenSettings.token0SupportsNativeYield(settings);
+        token1SupportsNativeYield = PoolTokenSettings.token1SupportsNativeYield(settings);
     }
 }

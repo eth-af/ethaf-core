@@ -15,6 +15,15 @@ contract MockTimeEthAfPoolDeployer {
 
     Parameters public parameters;
 
+    struct BlastParameters {
+        address blast;
+        address blastPoints;
+        address gasCollector;
+        address pointsOperator;
+    }
+
+    BlastParameters public blastParameters;
+
     event PoolDeployed(address pool);
 
     function deploy(
