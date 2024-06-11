@@ -4,7 +4,7 @@ pragma abicoder v2;
 
 import './interfaces/IEthAfFactory.sol';
 
-import './EthAfPoolDeployerModule.sol';
+import './modules/EthAfPoolDeployerModule.sol';
 import './NoDelegateCall.sol';
 
 import './EthAfPool.sol';

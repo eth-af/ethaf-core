@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity =0.7.6;
 
-import './interfaces/IEthAfPoolDeployerModule.sol';
+import './../interfaces/IEthAfPoolDeployerModule.sol';
 
-import './EthAfPool.sol';
+import './../EthAfPool.sol';
 
 contract EthAfPoolDeployerModule is IEthAfPoolDeployerModule {
 

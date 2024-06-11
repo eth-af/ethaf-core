@@ -130,22 +130,7 @@ describe('EthAfPoolWithBaseToken5', () => {
 
     const calleeContractFactory = await ethers.getContractFactory('TestEthAfCallee')
     swapTargetCallee = (await calleeContractFactory.deploy()) as TestEthAfCallee
-    /*
-    createPool = async (fee, tickSpacing, firstToken = token0, secondToken = token1) => {
-      const mockTimePoolDeployer = (await MockTimeEthAfPoolDeployerFactory.deploy()) as MockTimeEthAfPoolDeployer
-      const tx = await mockTimePoolDeployer.deploy(
-        factory.address,
-        firstToken.address,
-        secondToken.address,
-        fee,
-        tickSpacing
-      )
 
-      const receipt = await tx.wait()
-      const poolAddress = receipt.events?.[0].args?.pool as string
-      return MockTimeEthAfPoolFactory.attach(poolAddress) as MockTimeEthAfPool
-    }
-    */
     const tkn0 = token0.address // pump token 0
     const tkn1 = token1.address // usdb
     const tkn2 = token2.address // weth
@@ -290,19 +275,26 @@ describe('EthAfPoolWithBaseToken5', () => {
   }
 
   describe("blast settings", function () {
-    it('configured blast successfully', async function () {
+    it('pool configured blast successfully', async function () {
       expect(await mockBlast.isConfiguredAutomaticYield(pool1.address)).to.be.false
       expect(await mockBlast.isConfiguredClaimableGas(pool1.address)).to.be.true
       expect(await mockBlast.getGovernor(pool1.address)).to.eq(wallet.address)
       expect(await mockBlastPoints.operators(pool1.address)).to.eq(wallet.address)
     })
-    it('configured native yield successfully', async function () {
+    it('pool configured native yield successfully', async function () {
       expect(await weth.userModes(pool0.address)).to.eq(YieldMode.AUTOMATIC) // not in pool
       expect(await usdb.userModes(pool0.address)).to.eq(YieldMode.AUTOMATIC)
       expect(await weth.userModes(pool1.address)).to.eq(YieldMode.CLAIMABLE) // in pool
       expect(await usdb.userModes(pool1.address)).to.eq(YieldMode.CLAIMABLE)
       expect(await weth.userModes(pool8.address)).to.eq(YieldMode.CLAIMABLE)
       expect(await usdb.userModes(pool8.address)).to.eq(YieldMode.AUTOMATIC)
+    })
+    it('factory has correct blast parameters', async function () {
+      let blastParameters = await factory.blastParameters()
+      expect(blastParameters.blast).eq(mockBlast.address)
+      expect(blastParameters.blastPoints).eq(mockBlastPoints.address)
+      expect(blastParameters.gasCollector).eq(wallet.address)
+      expect(blastParameters.pointsOperator).eq(wallet.address)
     })
   })
 

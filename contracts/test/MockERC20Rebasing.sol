@@ -28,6 +28,7 @@ contract MockERC20Rebasing is IERC20Rebasing, TestERC20 {
         require(amount <= claimableAmount);
         require(userModes[recipient] == YieldMode.CLAIMABLE);
         mint(recipient, amount);
+        return amount;
     }
 
     // read the claimable amount for an account
