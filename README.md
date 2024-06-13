@@ -2,11 +2,6 @@
 
 Core smart contracts of ETH AF
 
-[![Lint](https://github.com/wwHysenberg/ethaf-coreactions/workflows/lint.yml/badge.svg)](https://github.com/wwHysenberg/ethaf-coreactions/workflows/lint.yml)
-[![Tests](https://github.com/wwHysenberg/ethaf-coreactions/workflows/tests.yml/badge.svg)](https://github.com/wwHysenberg/ethaf-coreactions/workflows/tests.yml)
-[![Fuzz Testing](https://github.com/wwHysenberg/ethaf-coreactions/workflows/fuzz-testing.yml/badge.svg)](https://github.com/wwHysenberg/ethaf-coreactions/workflows/fuzz-testing.yml)
-[![Mythx](https://github.com/wwHysenberg/ethaf-coreactions/workflows/mythx.yml/badge.svg)](https://github.com/wwHysenberg/ethaf-coreactions/workflows/mythx.yml)
-[![npm version](https://img.shields.io/npm/v/@ethaf/ethaf-core/latest.svg)](https://www.npmjs.com/package/@ethaf/ethaf-core/v/latest)
 
 This repository contains the core smart contracts for the ETH AF Protocol.
 For higher level contracts, see the [ethaf-periphery](https://github.com/wwHysenberg/ethaf-periphery)
@@ -53,10 +48,7 @@ contract MyContract {
 
 ## Licensing
 
-The primary license for ETH AF Core is the Business Source License 1.1 (`BUSL-1.1`), see [`LICENSE`](./LICENSE). However, some files are dual licensed under `GPL-2.0-or-later`:
-
-- All files in `contracts/interfaces/` may also be licensed under `GPL-2.0-or-later` (as indicated in their SPDX headers), see [`contracts/interfaces/LICENSE`](./contracts/interfaces/LICENSE)
-- Several files in `contracts/libraries/` may also be licensed under `GPL-2.0-or-later` (as indicated in their SPDX headers), see [`contracts/libraries/LICENSE`](contracts/libraries/LICENSE)
+The primary license for ETH AF Core is `GPL-2.0-or-later`
 
 ### Other Exceptions
 
