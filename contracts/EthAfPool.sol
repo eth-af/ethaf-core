@@ -534,17 +534,7 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
     // added view functions
 
     /// @inheritdoc IEthAfPoolImmutables
-    function getPoolTokenSettings() external view override returns (
-        bool isBaseToken0,
-        bool isBaseToken1
-    ) {
-        bytes32 settings = poolTokenSettings;
-        isBaseToken0 = PoolTokenSettings.isBaseToken0(settings);
-        isBaseToken1 = PoolTokenSettings.isBaseToken1(settings);
-    }
-
-    /// @inheritdoc IEthAfPoolImmutables
-    function getPoolTokenSettingsFull() public view override returns (
+    function getPoolTokenSettings() public view override returns (
         bool isBaseToken0,
         bool isBaseToken1,
         bool token0SupportsNativeYield,

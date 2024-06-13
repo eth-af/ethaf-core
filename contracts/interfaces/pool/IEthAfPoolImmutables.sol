@@ -41,17 +41,9 @@ interface IEthAfPoolImmutables {
     /// @notice The settings for the tokens in the pool
     /// @return isBaseToken0 True if token0 is the base token
     /// @return isBaseToken1 True if token1 is the base token
-    function getPoolTokenSettings() external view returns (
-        bool isBaseToken0,
-        bool isBaseToken1
-    );
-
-    /// @notice The settings for the tokens in the pool
-    /// @return isBaseToken0 True if token0 is the base token
-    /// @return isBaseToken1 True if token1 is the base token
     /// @return token0SupportsNativeYield True if token0 supports ERC20Rebasing
     /// @return token1SupportsNativeYield True if token1 supports ERC20Rebasing
-    function getPoolTokenSettingsFull() external view returns (
+    function getPoolTokenSettings() external view returns (
         bool isBaseToken0,
         bool isBaseToken1,
         bool token0SupportsNativeYield,

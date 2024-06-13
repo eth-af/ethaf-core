@@ -394,6 +394,8 @@ describe('EthAfPoolWithBaseToken', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(false)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       results1 = await feesAfterSwapTest(pool, false, true)
@@ -419,6 +421,8 @@ describe('EthAfPoolWithBaseToken', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(true)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       results2 = await feesAfterSwapTest(pool, false, true)
@@ -445,6 +449,8 @@ describe('EthAfPoolWithBaseToken', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(true)
       expect(tokenSettings.isBaseToken1).to.eq(false)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       results3 = await feesAfterSwapTest(pool, false, true)
@@ -467,6 +473,8 @@ describe('EthAfPoolWithBaseToken', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(false)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       results4 = await feesAfterSwapTest(pool, true, true)
@@ -493,6 +501,8 @@ describe('EthAfPoolWithBaseToken', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(true)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       results5 = await feesAfterSwapTest(pool, true, true)
@@ -521,6 +531,8 @@ describe('EthAfPoolWithBaseToken', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(true)
       expect(tokenSettings.isBaseToken1).to.eq(false)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       results6 = await feesAfterSwapTest(pool, true, true)
@@ -544,6 +556,8 @@ describe('EthAfPoolWithBaseToken', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(false)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       results7 = await feesAfterSwapTest(pool, false, false)
@@ -570,6 +584,8 @@ describe('EthAfPoolWithBaseToken', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(true)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       results8 = await feesAfterSwapTest(pool, false, false)
@@ -598,6 +614,8 @@ describe('EthAfPoolWithBaseToken', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(true)
       expect(tokenSettings.isBaseToken1).to.eq(false)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       results9 = await feesAfterSwapTest(pool, false, false)
@@ -618,6 +636,8 @@ describe('EthAfPoolWithBaseToken', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(false)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       results10 = await feesAfterSwapTest(pool, true, false)
@@ -644,6 +664,8 @@ describe('EthAfPoolWithBaseToken', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(true)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       results11 = await feesAfterSwapTest(pool, true, false)
@@ -673,6 +695,8 @@ describe('EthAfPoolWithBaseToken', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(true)
       expect(tokenSettings.isBaseToken1).to.eq(false)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       results12 = await feesAfterSwapTest(pool, true, false)

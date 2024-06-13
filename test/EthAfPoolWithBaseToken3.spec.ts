@@ -191,6 +191,8 @@ describe('EthAfPoolWithBaseToken3', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(false)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       await expect(mockFlasher.flash(pool.address, 0, 0)).to.be.reverted // no liquidity
@@ -313,6 +315,8 @@ describe('EthAfPoolWithBaseToken3', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(true)
       expect(tokenSettings.isBaseToken1).to.eq(false)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       await expect(mockFlasher.flash(pool.address, 0, 0)).to.be.reverted // no liquidity
@@ -520,6 +524,8 @@ describe('EthAfPoolWithBaseToken3', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(true)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
 
       await expect(mockFlasher.flash(pool.address, 0, 0)).to.be.reverted // no liquidity
