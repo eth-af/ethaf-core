@@ -2,7 +2,12 @@ import { BigNumber, BigNumberish, Wallet, ContractTransaction } from 'ethers'
 import { ethers, waffle } from 'hardhat'
 import { EthAfFactory } from '../typechain/EthAfFactory'
 import { EthAfPoolDeployerModule } from '../typechain/EthAfPoolDeployerModule'
+import { EthAfPoolActionsModule } from '../typechain/EthAfPoolActionsModule'
+import { EthAfPoolCollectModule } from '../typechain/EthAfPoolCollectModule'
+import { EthAfPoolProtocolFeeModule } from '../typechain/EthAfPoolProtocolFeeModule'
 import { EthAfSwapFeeDistributor } from '../typechain/EthAfSwapFeeDistributor'
+import { MockBlast } from '../typechain/MockBlast'
+import { MockBlastPoints } from '../typechain/MockBlastPoints'
 import { EthAfPool } from '../typechain/EthAfPool'
 import { TestERC20 } from '../typechain/TestERC20'
 import { TestEthAfCallee } from '../typechain/TestEthAfCallee'
@@ -57,18 +62,6 @@ describe('EthAfPoolWithBaseToken', () => {
   let swapTargetCallee: TestEthAfCallee
 
   let createPool: ThenArg<ReturnType<typeof poolFixture>>['createPool']
-
-  const fixture = async () => {
-    const poolDeployerModuleFactory = await ethers.getContractFactory('EthAfPoolDeployerModule')
-    const poolDeployerModule = (await poolDeployerModuleFactory.deploy()) as EthAfPoolDeployerModule
-    const factoryFactory = await ethers.getContractFactory('EthAfFactory')
-    //const factory = (await factoryFactory.deploy(poolDeployerModule.address)) as EthAfFactory
-    const factory = (await factoryFactory.deploy(poolDeployerModule.address, AddressZero, AddressZero, AddressZero, AddressZero)) as EthAfFactory
-    const swapFeeDistributorFactory = await ethers.getContractFactory('EthAfSwapFeeDistributor')
-    const swapFeeDistributor = (await swapFeeDistributorFactory.deploy(factory.address)) as EthAfSwapFeeDistributor
-    await factory.setSwapFeeDistributor(swapFeeDistributor.address)
-    return { factory, poolDeployerModule, swapFeeDistributor }
-  }
 
   let loadFixture: ReturnType<typeof createFixtureLoader>
   before('create fixture loader', async () => {
@@ -367,8 +360,7 @@ describe('EthAfPoolWithBaseToken', () => {
       var feeGrowthGlobal1X128 = await pool.feeGrowthGlobal1X128()
 
       // base token swap fees
-      const swapFeesAccumulated0 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1 = await pool.swapFeesAccumulated1()
+      const baseTokensAccumulated = await pool.baseTokensAccumulated()
 
       return {
         balU0, balU1, balU2, balU3, balU4, balU5,
@@ -377,8 +369,8 @@ describe('EthAfPoolWithBaseToken', () => {
         diffP01, diffP12, diffP23, diffP34, diffP45,
         feeGrowthGlobal0X128, feeGrowthGlobal1X128,
         position0, position1, position2, position3,
-        slot0, slot0_1, slot0_2, //tick0, tick1, tick2, tick3,
-        swapFeesAccumulated0, swapFeesAccumulated1,
+        slot0, slot0_1, slot0_2,
+        baseTokensAccumulated,
       }
     }
 
@@ -410,8 +402,8 @@ describe('EthAfPoolWithBaseToken', () => {
       expect(results1.feeGrowthGlobal1X128).eq(0) // no fees in this direction
       expect(results1.position2.tokensOwed0).gt(0)
       expect(results1.position2.tokensOwed1).eq(0)
-      expect(results1.swapFeesAccumulated0).eq(0) // no withheld fees
-      expect(results1.swapFeesAccumulated1).eq(0) // no withheld fees
+      expect(results1.baseTokensAccumulated.amount0).eq(0) // no withheld fees
+      expect(results1.baseTokensAccumulated.amount1).eq(0) // no withheld fees
       expect(results1.slot0_2.sqrtPriceX96).eq(results1.slot0_1.sqrtPriceX96) // no price change
     })
     // token1 is base token, fees earned in token0, expect no diff
@@ -435,8 +427,8 @@ describe('EthAfPoolWithBaseToken', () => {
       expect(results2.feeGrowthGlobal1X128).eq(0) // no fees in this direction
       expect(results2.position2.tokensOwed0).gt(0)
       expect(results2.position2.tokensOwed1).eq(0)
-      expect(results2.swapFeesAccumulated0).eq(0) // no withheld fees
-      expect(results2.swapFeesAccumulated1).eq(0) // no withheld fees
+      expect(results2.baseTokensAccumulated.amount0).eq(0) // no withheld fees
+      expect(results2.baseTokensAccumulated.amount1).eq(0) // no withheld fees
       expect(results2.slot0_2.sqrtPriceX96).eq(results2.slot0_1.sqrtPriceX96) // no price change
     })
     // token0 is base token, fees earned in token0, expect fees to not be earned by LPs
@@ -463,8 +455,8 @@ describe('EthAfPoolWithBaseToken', () => {
       expect(results3.position2.tokensOwed1).eq(0)
       let swapAmountIn = WeiPerEther // swapped in 1 eth
       let expectedFees = swapAmountIn.mul(5).div(10_000) // 0.05% fee tier = 5 bps
-      expect(results3.swapFeesAccumulated0).eq(expectedFees) // some withheld fees
-      expect(results3.swapFeesAccumulated1).eq(0) // no withheld fees
+      expect(results3.baseTokensAccumulated.amount0).eq(expectedFees) // some withheld fees
+      expect(results3.baseTokensAccumulated.amount1).eq(0) // no withheld fees
       expect(results3.slot0_2.sqrtPriceX96).eq(results3.slot0_1.sqrtPriceX96) // no price change
     })
     // default test but with distribution
@@ -483,8 +475,8 @@ describe('EthAfPoolWithBaseToken', () => {
       expect(results4.feeGrowthGlobal1X128).eq(0) // no fees in this direction
       expect(results4.position2.tokensOwed0).gt(0)
       expect(results4.position2.tokensOwed1).eq(0)
-      expect(results4.swapFeesAccumulated0).eq(0) // no withheld fees
-      expect(results4.swapFeesAccumulated1).eq(0) // no withheld fees
+      expect(results4.baseTokensAccumulated.amount0).eq(0) // no withheld fees
+      expect(results4.baseTokensAccumulated.amount1).eq(0) // no withheld fees
       expect(results4.slot0_2.sqrtPriceX96).eq(results4.slot0_1.sqrtPriceX96) // no price change
     })
     // same as test 2 but with distribution
@@ -511,8 +503,8 @@ describe('EthAfPoolWithBaseToken', () => {
       //expect(results5.position2.tokensOwed1).eq(results5.feeGrowthGlobal1X128)
       expect(results5.position2.tokensOwed0).gt(0)
       expect(results5.position2.tokensOwed1).eq(0)
-      expect(results5.swapFeesAccumulated0).eq(0) // no withheld fees
-      expect(results5.swapFeesAccumulated1).eq(0) // no withheld fees
+      expect(results5.baseTokensAccumulated.amount0).eq(0) // no withheld fees
+      expect(results5.baseTokensAccumulated.amount1).eq(0) // no withheld fees
       expect(results5.slot0_2.sqrtPriceX96).eq(results5.slot0_1.sqrtPriceX96) // no price change
     })
     // same as test 3 but with distribution
@@ -540,8 +532,8 @@ describe('EthAfPoolWithBaseToken', () => {
       let swapAmountIn = WeiPerEther // swapped in 1 eth
       let expectedFees = swapAmountIn.mul(5).div(10_000) // 0.05% fee tier = 5 bps
       let expectedFees2 = expectedFees.mul(5).div(10_000) // 0.05% fee tier = 5 bps
-      expect(results6.swapFeesAccumulated0).eq(expectedFees2) // fees have been distributed, but distributing creates more fees
-      expect(results6.swapFeesAccumulated1).eq(0) // no withheld fees on this side
+      expect(results6.baseTokensAccumulated.amount0).eq(expectedFees2) // fees have been distributed, but distributing creates more fees
+      expect(results6.baseTokensAccumulated.amount1).eq(0) // no withheld fees on this side
       expect(results6.slot0_2.sqrtPriceX96).lt(results6.slot0_1.sqrtPriceX96) // price increased from distribution. lesser than because 0/1
     })
 
@@ -560,8 +552,8 @@ describe('EthAfPoolWithBaseToken', () => {
       expect(results7.feeGrowthGlobal1X128).gt(0) // earned fees. not withheld
       expect(results7.position2.tokensOwed0).eq(0)
       expect(results7.position2.tokensOwed1).gt(0)
-      expect(results7.swapFeesAccumulated0).eq(0) // no withheld fees
-      expect(results7.swapFeesAccumulated1).eq(0) // no withheld fees
+      expect(results7.baseTokensAccumulated.amount0).eq(0) // no withheld fees
+      expect(results7.baseTokensAccumulated.amount1).eq(0) // no withheld fees
       expect(results7.slot0_2.sqrtPriceX96).eq(results7.slot0_1.sqrtPriceX96) // no price change
     })
     // same as test 2 expect swap direction is reversed
@@ -588,8 +580,8 @@ describe('EthAfPoolWithBaseToken', () => {
       expect(results8.position2.tokensOwed1).eq(0)
       let swapAmountIn = WeiPerEther // swapped in 1 eth
       let expectedFees = swapAmountIn.mul(5).div(10_000) // 0.05% fee tier = 5 bps
-      expect(results8.swapFeesAccumulated0).eq(0) // no withheld fees
-      expect(results8.swapFeesAccumulated1).eq(expectedFees) // some withheld fees
+      expect(results8.baseTokensAccumulated.amount0).eq(0) // no withheld fees
+      expect(results8.baseTokensAccumulated.amount1).eq(expectedFees) // some withheld fees
       expect(results8.slot0_2.sqrtPriceX96).eq(results8.slot0_1.sqrtPriceX96) // no price change
     })
     // same as test 3 but with swap direction reversed
@@ -614,8 +606,8 @@ describe('EthAfPoolWithBaseToken', () => {
       expect(results9.feeGrowthGlobal1X128).gt(0) // earned fees. not withheld
       expect(results9.position2.tokensOwed0).eq(0)
       expect(results9.position2.tokensOwed1).gt(0)
-      expect(results9.swapFeesAccumulated0).eq(0) // no withheld fees
-      expect(results9.swapFeesAccumulated1).eq(0) // no withheld fees
+      expect(results9.baseTokensAccumulated.amount0).eq(0) // no withheld fees
+      expect(results9.baseTokensAccumulated.amount1).eq(0) // no withheld fees
       expect(results9.slot0_2.sqrtPriceX96).eq(results9.slot0_1.sqrtPriceX96) // no price change
     })
     // default test but with distribution
@@ -634,8 +626,8 @@ describe('EthAfPoolWithBaseToken', () => {
       expect(results10.feeGrowthGlobal1X128).gt(0) // earned fees. not withheld
       expect(results10.position2.tokensOwed0).eq(0)
       expect(results10.position2.tokensOwed1).gt(0)
-      expect(results10.swapFeesAccumulated0).eq(0) // no withheld fees
-      expect(results10.swapFeesAccumulated1).eq(0) // no withheld fees
+      expect(results10.baseTokensAccumulated.amount0).eq(0) // no withheld fees
+      expect(results10.baseTokensAccumulated.amount1).eq(0) // no withheld fees
       expect(results10.slot0_2.sqrtPriceX96).eq(results10.slot0_1.sqrtPriceX96) // no price change
     })
     // same as test 2 but with distribution and different swap direction
@@ -663,8 +655,8 @@ describe('EthAfPoolWithBaseToken', () => {
       let swapAmountIn = WeiPerEther // swapped in 1 eth
       let expectedFees = swapAmountIn.mul(5).div(10_000) // 0.05% fee tier = 5 bps
       let expectedFees2 = expectedFees.mul(5).div(10_000) // 0.05% fee tier = 5 bps
-      expect(results11.swapFeesAccumulated0).eq(0) // no withheld fees on this side
-      expect(results11.swapFeesAccumulated1).eq(expectedFees2) // fees have been distributed, but distributing creates more fees
+      expect(results11.baseTokensAccumulated.amount0).eq(0) // no withheld fees on this side
+      expect(results11.baseTokensAccumulated.amount1).eq(expectedFees2) // fees have been distributed, but distributing creates more fees
       expect(results11.slot0_2.sqrtPriceX96).gt(results11.slot0_1.sqrtPriceX96) // price increased from distribution. greater than because 0/1
     })
     // same as test 3 but with distribution
@@ -689,8 +681,8 @@ describe('EthAfPoolWithBaseToken', () => {
       expect(results12.feeGrowthGlobal1X128).gt(0) // earned fees. not withheld
       expect(results12.position2.tokensOwed0).eq(0)
       expect(results12.position2.tokensOwed1).gt(0)
-      expect(results12.swapFeesAccumulated0).eq(0) // no withheld fees
-      expect(results12.swapFeesAccumulated1).eq(0) // no withheld fees
+      expect(results12.baseTokensAccumulated.amount0).eq(0) // no withheld fees
+      expect(results12.baseTokensAccumulated.amount1).eq(0) // no withheld fees
       expect(results12.slot0_2.sqrtPriceX96).eq(results12.slot0_1.sqrtPriceX96) // no price change
     })
   })

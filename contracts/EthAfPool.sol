@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity =0.7.6;
+pragma abicoder v2;
 
 import './interfaces/IEthAfPool.sol';
 
@@ -12,19 +13,9 @@ import './libraries/TickBitmap.sol';
 import './libraries/Position.sol';
 import './libraries/Oracle.sol';
 
-import './libraries/FullMath.sol';
-import './libraries/FixedPoint128.sol';
-import './libraries/TransferHelper.sol';
 import './libraries/TickMath.sol';
-import './libraries/LiquidityMath.sol';
-import './libraries/SqrtPriceMath.sol';
-import './libraries/SwapMath.sol';
 
 import './interfaces/IEthAfFactory.sol';
-import './interfaces/IERC20Minimal.sol';
-import './interfaces/callback/IEthAfMintCallback.sol';
-import './interfaces/callback/IEthAfSwapCallback.sol';
-import './interfaces/callback/IEthAfFlashCallback.sol';
 
 import './libraries/PoolTokenSettings.sol';
 
@@ -32,7 +23,14 @@ import './interfaces/external/Blast/IBlast.sol';
 import './interfaces/external/Blast/IBlastPoints.sol';
 import './interfaces/external/Blast/IERC20Rebasing.sol';
 
+import './interfaces/modules/IEthAfPoolCollectModule.sol';
+import './interfaces/modules/IEthAfPoolActionsModule.sol';
+import './interfaces/modules/IEthAfPoolProtocolFeeModule.sol';
 
+
+/// @title The ETH AF Pool
+/// @notice A ETH AF pool facilitates swapping and automated market making between any two assets that strictly conform
+/// to the ERC20 or ERC20Rebasing specification
 contract EthAfPool is IEthAfPool, NoDelegateCall {
     using LowGasSafeMath for uint256;
     using LowGasSafeMath for int256;
@@ -104,12 +102,23 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
     /// @inheritdoc IEthAfPoolState
     Oracle.Observation[65535] public override observations;
 
-    bytes32 public override poolTokenSettings;
+    /// @inheritdoc IEthAfPoolImmutables
+    bytes32 public immutable override poolTokenSettings;
+    /// @inheritdoc IEthAfPoolImmutables
+    address public immutable override actionsModule;
+    /// @inheritdoc IEthAfPoolImmutables
+    address public immutable override collectModule;
+    /// @inheritdoc IEthAfPoolImmutables
+    address public immutable override protocolModule;
 
-    // / @inheritdoc IEthAfPoolState
-    uint256 public swapFeesAccumulated0;
-    // // @inheritdoc IEthAfPoolState
-    uint256 public swapFeesAccumulated1;
+    // accumalated base tokens in token0/token1 units
+    struct BaseTokensAccumulated {
+        uint256 amount0;
+        uint256 amount1;
+    }
+
+    // storage slots
+    bytes32 internal constant BASE_TOKENS_ACCUMULATED_SLOT = keccak256("ethaf.pool.storage.basetokenacc");
 
     /// @dev Mutually exclusive reentrancy protection into the pool to/from a method. This method also prevents entrance
     /// to a function before the pool is initialized. The reentrancy guard is required throughout the contract because
@@ -127,10 +136,13 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         _;
     }
 
+    // constructor
+
     constructor() {
         int24 _tickSpacing;
         address tkn0;
         address tkn1;
+        bytes32 _poolTokenSettings;
 
         (
             factory,
@@ -138,23 +150,27 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
             tkn1,
             fee,
             _tickSpacing,
-            poolTokenSettings
+            _poolTokenSettings
         ) = IEthAfFactory(msg.sender).parameters();
         token0 = tkn0;
         token1 = tkn1;
         tickSpacing = _tickSpacing;
-
         maxLiquidityPerTick = Tick.tickSpacingToMaxLiquidityPerTick(_tickSpacing);
+        poolTokenSettings = _poolTokenSettings;
 
-        (bool isBaseToken0, bool isBaseToken1, bool token0SupportsNativeYield, bool token1SupportsNativeYield) =
-            getPoolTokenSettingsFull();
+        bool isBaseToken0 = PoolTokenSettings.isBaseToken0(_poolTokenSettings);
+        bool isBaseToken1 = PoolTokenSettings.isBaseToken1(_poolTokenSettings);
         require(!(isBaseToken0 && isBaseToken1)); // cannot both be base tokens
 
-        if(token0SupportsNativeYield) {
-            tkn0.call(abi.encodeWithSelector(IERC20Rebasing.configure.selector, IERC20Rebasing.YieldMode.CLAIMABLE));
+        if(PoolTokenSettings.token0SupportsNativeYield(_poolTokenSettings)) {
+            IERC20Rebasing(tkn0).configure(IERC20Rebasing.YieldMode.CLAIMABLE);
         }
-        if(token1SupportsNativeYield) {
-            tkn1.call(abi.encodeWithSelector(IERC20Rebasing.configure.selector, IERC20Rebasing.YieldMode.CLAIMABLE));
+        if(PoolTokenSettings.token1SupportsNativeYield(_poolTokenSettings)) {
+            IERC20Rebasing(tkn1).configure(IERC20Rebasing.YieldMode.CLAIMABLE);
+        }
+
+        {
+        (actionsModule, collectModule, protocolModule) = IEthAfFactory(msg.sender).moduleParameters();
         }
 
         {
@@ -165,51 +181,20 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
             address pointsOperator
         ) = IEthAfFactory(msg.sender).blastParameters();
         // calls to setup blast
-        // allow these calls to fail on local fork
-        // check success after deployment
         if(blast != address(0)) {
-            blast.call(abi.encodeWithSelector(IBlast.configureClaimableGas.selector));
+            IBlast(blast).configureClaimableGas();
             if(gasCollector != address(0)) {
-                blast.call(abi.encodeWithSelector(IBlast.configureGovernor.selector, gasCollector));
+                IBlast(blast).configureGovernor(gasCollector);
             }
+
         }
         if(blastPoints != address(0) && pointsOperator != address(0)) {
-            blastPoints.call(abi.encodeWithSelector(IBlastPoints.configurePointsOperator.selector, pointsOperator));
+            IBlastPoints(blastPoints).configurePointsOperator(pointsOperator);
         }
         }
     }
 
-    /// @dev Common checks for valid tick inputs.
-    function checkTicks(int24 tickLower, int24 tickUpper) private pure {
-        require(tickLower < tickUpper, 'TLU');
-        require(tickLower >= TickMath.MIN_TICK, 'TLM');
-        require(tickUpper <= TickMath.MAX_TICK, 'TUM');
-    }
-
-    /// @dev Returns the block timestamp truncated to 32 bits, i.e. mod 2**32. This method is overridden in tests.
-    function _blockTimestamp() internal view virtual returns (uint32) {
-        return uint32(block.timestamp); // truncation is desired
-    }
-
-    /// @dev Get the pool's balance of token0
-    /// @dev This function is gas optimized to avoid a redundant extcodesize check in addition to the returndatasize
-    /// check
-    function balance0() private view returns (uint256) {
-        (bool success, bytes memory data) =
-            token0.staticcall(abi.encodeWithSelector(IERC20Minimal.balanceOf.selector, address(this)));
-        require(success && data.length >= 32);
-        return abi.decode(data, (uint256));
-    }
-
-    /// @dev Get the pool's balance of token1
-    /// @dev This function is gas optimized to avoid a redundant extcodesize check in addition to the returndatasize
-    /// check
-    function balance1() private view returns (uint256) {
-        (bool success, bytes memory data) =
-            token1.staticcall(abi.encodeWithSelector(IERC20Minimal.balanceOf.selector, address(this)));
-        require(success && data.length >= 32);
-        return abi.decode(data, (uint256));
-    }
+    // view functions
 
     /// @inheritdoc IEthAfPoolDerivedState
     function snapshotCumulativesInside(int24 tickLower, int24 tickUpper)
@@ -308,6 +293,8 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
             );
     }
 
+    // action functions
+
     /// @inheritdoc IEthAfPoolActions
     function increaseObservationCardinalityNext(uint16 observationCardinalityNext)
         external
@@ -315,232 +302,58 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         lock
         noDelegateCall
     {
-        uint16 observationCardinalityNextOld = slot0.observationCardinalityNext; // for the event
-        uint16 observationCardinalityNextNew =
-            observations.grow(observationCardinalityNextOld, observationCardinalityNext);
-        slot0.observationCardinalityNext = observationCardinalityNextNew;
-        if (observationCardinalityNextOld != observationCardinalityNextNew)
-            emit IncreaseObservationCardinalityNext(observationCardinalityNextOld, observationCardinalityNextNew);
+        // encode calldata
+        bytes memory calldata_ = abi.encodeWithSelector(IEthAfPoolActionsModule.increaseObservationCardinalityNext.selector, observationCardinalityNext);
+        // delegatecall into the pool actions module
+        (bool success, bytes memory returndata) = actionsModule.delegatecall(calldata_);
+        // check success
+        _requireSuccess(success, returndata);
     }
 
     /// @inheritdoc IEthAfPoolActions
     /// @dev not locked because it initializes unlocked
-    function initialize(uint160 sqrtPriceX96) external override {
-        require(slot0.sqrtPriceX96 == 0, 'AI');
+    function initialize(uint160 sqrtPriceX96) external override noDelegateCall  {
+        // encode calldata
+        uint32 timestamp = _blockTimestamp();
+        bytes memory calldata_ = abi.encodeWithSelector(IEthAfPoolActionsModule.initialize.selector, sqrtPriceX96, timestamp);
+        // delegatecall into the pool actions module
+        (bool success, bytes memory returndata) = actionsModule.delegatecall(calldata_);
+        // check success
+        _requireSuccess(success, returndata);
 
-        int24 tick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
-
-        (uint16 cardinality, uint16 cardinalityNext) = observations.initialize(_blockTimestamp());
-
-        slot0 = Slot0({
-            sqrtPriceX96: sqrtPriceX96,
-            tick: tick,
-            observationIndex: 0,
-            observationCardinality: cardinality,
-            observationCardinalityNext: cardinalityNext,
-            feeProtocol: 0,
-            unlocked: true
-        });
-
-        emit Initialize(sqrtPriceX96, tick);
-    }
-
-    struct ModifyPositionParams {
-        // the address that owns the position
-        address owner;
-        // the lower and upper tick of the position
-        int24 tickLower;
-        int24 tickUpper;
-        // any change in liquidity
-        int128 liquidityDelta;
-    }
-
-    /// @dev Effect some changes to a position
-    /// @param params the position details and the change to the position's liquidity to effect
-    /// @return position a storage pointer referencing the position with the given owner and tick range
-    /// @return amount0 the amount of token0 owed to the pool, negative if the pool should pay the recipient
-    /// @return amount1 the amount of token1 owed to the pool, negative if the pool should pay the recipient
-    function _modifyPosition(ModifyPositionParams memory params)
-        private
-        noDelegateCall
-        returns (
-            Position.Info storage position,
-            int256 amount0,
-            int256 amount1
-        )
-    {
-        checkTicks(params.tickLower, params.tickUpper);
-
-        Slot0 memory _slot0 = slot0; // SLOAD for gas optimization
-
-        position = _updatePosition(
-            params.owner,
-            params.tickLower,
-            params.tickUpper,
-            params.liquidityDelta,
-            _slot0.tick
-        );
-
-        if (params.liquidityDelta != 0) {
-            if (_slot0.tick < params.tickLower) {
-                // current tick is below the passed range; liquidity can only become in range by crossing from left to
-                // right, when we'll need _more_ token0 (it's becoming more valuable) so user must provide it
-                amount0 = SqrtPriceMath.getAmount0Delta(
-                    TickMath.getSqrtRatioAtTick(params.tickLower),
-                    TickMath.getSqrtRatioAtTick(params.tickUpper),
-                    params.liquidityDelta
-                );
-            } else if (_slot0.tick < params.tickUpper) {
-                // current tick is inside the passed range
-                uint128 liquidityBefore = liquidity; // SLOAD for gas optimization
-
-                // write an oracle entry
-                (slot0.observationIndex, slot0.observationCardinality) = observations.write(
-                    _slot0.observationIndex,
-                    _blockTimestamp(),
-                    _slot0.tick,
-                    liquidityBefore,
-                    _slot0.observationCardinality,
-                    _slot0.observationCardinalityNext
-                );
-
-                amount0 = SqrtPriceMath.getAmount0Delta(
-                    _slot0.sqrtPriceX96,
-                    TickMath.getSqrtRatioAtTick(params.tickUpper),
-                    params.liquidityDelta
-                );
-                amount1 = SqrtPriceMath.getAmount1Delta(
-                    TickMath.getSqrtRatioAtTick(params.tickLower),
-                    _slot0.sqrtPriceX96,
-                    params.liquidityDelta
-                );
-
-                liquidity = LiquidityMath.addDelta(liquidityBefore, params.liquidityDelta);
-            } else {
-                // current tick is above the passed range; liquidity can only become in range by crossing from right to
-                // left, when we'll need _more_ token1 (it's becoming more valuable) so user must provide it
-                amount1 = SqrtPriceMath.getAmount1Delta(
-                    TickMath.getSqrtRatioAtTick(params.tickLower),
-                    TickMath.getSqrtRatioAtTick(params.tickUpper),
-                    params.liquidityDelta
-                );
-            }
-        }
-    }
-
-    /// @dev Gets and updates a position with the given liquidity delta
-    /// @param owner the owner of the position
-    /// @param tickLower the lower tick of the position's tick range
-    /// @param tickUpper the upper tick of the position's tick range
-    /// @param tick the current tick, passed to avoid sloads
-    function _updatePosition(
-        address owner,
-        int24 tickLower,
-        int24 tickUpper,
-        int128 liquidityDelta,
-        int24 tick
-    ) private returns (Position.Info storage position) {
-        position = positions.get(owner, tickLower, tickUpper);
-
-        uint256 _feeGrowthGlobal0X128 = feeGrowthGlobal0X128; // SLOAD for gas optimization
-        uint256 _feeGrowthGlobal1X128 = feeGrowthGlobal1X128; // SLOAD for gas optimization
-
-        // if we need to update the ticks, do it
-        bool flippedLower;
-        bool flippedUpper;
-        if (liquidityDelta != 0) {
-            uint32 time = _blockTimestamp();
-            (int56 tickCumulative, uint160 secondsPerLiquidityCumulativeX128) =
-                observations.observeSingle(
-                    time,
-                    0,
-                    slot0.tick,
-                    slot0.observationIndex,
-                    liquidity,
-                    slot0.observationCardinality
-                );
-
-            flippedLower = ticks.update(
-                tickLower,
-                tick,
-                liquidityDelta,
-                _feeGrowthGlobal0X128,
-                _feeGrowthGlobal1X128,
-                secondsPerLiquidityCumulativeX128,
-                tickCumulative,
-                time,
-                false,
-                maxLiquidityPerTick
-            );
-            flippedUpper = ticks.update(
-                tickUpper,
-                tick,
-                liquidityDelta,
-                _feeGrowthGlobal0X128,
-                _feeGrowthGlobal1X128,
-                secondsPerLiquidityCumulativeX128,
-                tickCumulative,
-                time,
-                true,
-                maxLiquidityPerTick
-            );
-
-            if (flippedLower) {
-                tickBitmap.flipTick(tickLower, tickSpacing);
-            }
-            if (flippedUpper) {
-                tickBitmap.flipTick(tickUpper, tickSpacing);
-            }
-        }
-
-        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
-            ticks.getFeeGrowthInside(tickLower, tickUpper, tick, _feeGrowthGlobal0X128, _feeGrowthGlobal1X128);
-
-        position.update(liquidityDelta, feeGrowthInside0X128, feeGrowthInside1X128);
-
-        // clear any tick data that is no longer needed
-        if (liquidityDelta < 0) {
-            if (flippedLower) {
-                ticks.clear(tickLower);
-            }
-            if (flippedUpper) {
-                ticks.clear(tickUpper);
-            }
-        }
     }
 
     /// @inheritdoc IEthAfPoolActions
-    /// @dev noDelegateCall is applied indirectly via _modifyPosition
     function mint(
         address recipient,
         int24 tickLower,
         int24 tickUpper,
         uint128 amount,
         bytes calldata data
-    ) external override lock returns (uint256 amount0, uint256 amount1) {
-        require(amount > 0);
-        (, int256 amount0Int, int256 amount1Int) =
-            _modifyPosition(
-                ModifyPositionParams({
-                    owner: recipient,
-                    tickLower: tickLower,
-                    tickUpper: tickUpper,
-                    liquidityDelta: int256(amount).toInt128()
-                })
-            );
-
-        amount0 = uint256(amount0Int);
-        amount1 = uint256(amount1Int);
-
-        uint256 balance0Before;
-        uint256 balance1Before;
-        if (amount0 > 0) balance0Before = balance0();
-        if (amount1 > 0) balance1Before = balance1();
-        IEthAfMintCallback(msg.sender).ethafMintCallback(amount0, amount1, data);
-        if (amount0 > 0) require(balance0Before.add(amount0) <= balance0(), 'M0');
-        if (amount1 > 0) require(balance1Before.add(amount1) <= balance1(), 'M1');
-
-        emit Mint(msg.sender, recipient, tickLower, tickUpper, amount, amount0, amount1);
+    ) external override lock noDelegateCall returns (uint256 amount0, uint256 amount1) {
+        // encode calldata
+        uint32 timestamp = _blockTimestamp();
+        bytes memory calldata_ = abi.encodeWithSelector(
+            IEthAfPoolActionsModule.mint.selector,
+            IEthAfPoolActionsModule.MintParams({
+                recipient: recipient,
+                tickLower: tickLower,
+                tickUpper: tickUpper,
+                amount: amount,
+                token0: token0,
+                token1: token1,
+                data: data,
+                timestamp: timestamp,
+                tickSpacing: tickSpacing,
+                maxLiquidityPerTick: maxLiquidityPerTick
+            })
+        );
+        // delegatecall into the pool actions module
+        (bool success, bytes memory returndata) = actionsModule.delegatecall(calldata_);
+        // check success
+        _requireSuccess(success, returndata);
+        // decode result
+        (amount0, amount1) = abi.decode(returndata, (uint256, uint256));
     }
 
     /// @inheritdoc IEthAfPoolActions
@@ -550,23 +363,26 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         int24 tickUpper,
         uint128 amount0Requested,
         uint128 amount1Requested
-    ) external override lock returns (uint128 amount0, uint128 amount1) {
-        // we don't need to checkTicks here, because invalid positions will never have non-zero tokensOwed{0,1}
-        Position.Info storage position = positions.get(msg.sender, tickLower, tickUpper);
-
-        amount0 = amount0Requested > position.tokensOwed0 ? position.tokensOwed0 : amount0Requested;
-        amount1 = amount1Requested > position.tokensOwed1 ? position.tokensOwed1 : amount1Requested;
-
-        if (amount0 > 0) {
-            position.tokensOwed0 -= amount0;
-            TransferHelper.safeTransfer(token0, recipient, amount0);
-        }
-        if (amount1 > 0) {
-            position.tokensOwed1 -= amount1;
-            TransferHelper.safeTransfer(token1, recipient, amount1);
-        }
-
-        emit Collect(msg.sender, recipient, tickLower, tickUpper, amount0, amount1);
+    ) external override lock noDelegateCall returns (uint128 amount0, uint128 amount1) {
+        // encode calldata
+        bytes memory calldata_ = abi.encodeWithSelector(
+            IEthAfPoolCollectModule.collect.selector,
+            IEthAfPoolCollectModule.CollectParams({
+                recipient: recipient,
+                tickLower: tickLower,
+                tickUpper: tickUpper,
+                amount0Requested: amount0Requested,
+                amount1Requested: amount1Requested,
+                token0: token0,
+                token1: token1
+            })
+        );
+        // delegatecall into the pool collect module
+        (bool success, bytes memory returndata) = collectModule.delegatecall(calldata_);
+        // check success
+        _requireSuccess(success, returndata);
+        // decode result
+        (amount0, amount1) = abi.decode(returndata, (uint128, uint128));
     }
 
     /// @inheritdoc IEthAfPoolActions
@@ -575,80 +391,26 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         int24 tickLower,
         int24 tickUpper,
         uint128 amount
-    ) external override lock returns (uint256 amount0, uint256 amount1) {
-        // modify position
-        (Position.Info storage position, int256 amount0Int, int256 amount1Int) =
-            _modifyPosition(
-                ModifyPositionParams({
-                    owner: msg.sender,
-                    tickLower: tickLower,
-                    tickUpper: tickUpper,
-                    liquidityDelta: -int256(amount).toInt128()
-                })
-            );
-
-        amount0 = uint256(-amount0Int);
-        amount1 = uint256(-amount1Int);
-
-        // accumulate rewards
-        if (amount0 > 0 || amount1 > 0) {
-            (position.tokensOwed0, position.tokensOwed1) = (
-                position.tokensOwed0 + uint128(amount0),
-                position.tokensOwed1 + uint128(amount1)
-            );
-        }
-
-        emit Burn(msg.sender, tickLower, tickUpper, amount, amount0, amount1);
-    }
-
-    struct SwapCache {
-        // the protocol fee for the input token
-        uint8 feeProtocol;
-        // liquidity at the beginning of the swap
-        uint128 liquidityStart;
-        // the timestamp of the current block
-        uint32 blockTimestamp;
-        // the current value of the tick accumulator, computed only if we cross an initialized tick
-        int56 tickCumulative;
-        // the current value of seconds per liquidity accumulator, computed only if we cross an initialized tick
-        uint160 secondsPerLiquidityCumulativeX128;
-        // whether we've computed and cached the above two accumulators
-        bool computedLatestObservation;
-    }
-
-    // the top level state of the swap, the results of which are recorded in storage at the end
-    struct SwapState {
-        // the amount remaining to be swapped in/out of the input/output asset
-        int256 amountSpecifiedRemaining;
-        // the amount already swapped out/in of the output/input asset
-        int256 amountCalculated;
-        // current sqrt(price)
-        uint160 sqrtPriceX96;
-        // the tick associated with the current price
-        int24 tick;
-        // the global fee growth of the input token
-        uint256 feeGrowthGlobalX128;
-        // amount of input token paid as protocol fee
-        uint128 protocolFee;
-        // the current liquidity in range
-        uint128 liquidity;
-    }
-
-    struct StepComputations {
-        // the price at the beginning of the step
-        uint160 sqrtPriceStartX96;
-        // the next tick to swap to from the current tick in the swap direction
-        int24 tickNext;
-        // whether tickNext is initialized or not
-        bool initialized;
-        // sqrt(price) for the next tick (1/0)
-        uint160 sqrtPriceNextX96;
-        // how much is being swapped in in this step
-        uint256 amountIn;
-        // how much is being swapped out
-        uint256 amountOut;
-        // how much fee is being paid in
-        uint256 feeAmount;
+    ) external override lock noDelegateCall returns (uint256 amount0, uint256 amount1) {
+        // encode calldata
+        uint32 timestamp = _blockTimestamp();
+        bytes memory calldata_ = abi.encodeWithSelector(
+            IEthAfPoolActionsModule.burn.selector,
+            IEthAfPoolActionsModule.BurnParams({
+                tickLower: tickLower,
+                tickUpper: tickUpper,
+                amount: amount,
+                timestamp: timestamp,
+                tickSpacing: tickSpacing,
+                maxLiquidityPerTick: maxLiquidityPerTick
+            })
+        );
+        // delegatecall into the pool actions module
+        (bool success, bytes memory returndata) = actionsModule.delegatecall(calldata_);
+        // check success
+        _requireSuccess(success, returndata);
+        // decode result
+        (amount0, amount1) = abi.decode(returndata, (uint256, uint256));
     }
 
     /// @inheritdoc IEthAfPoolActions
@@ -659,228 +421,34 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         uint160 sqrtPriceLimitX96,
         bytes calldata data
     ) external override noDelegateCall returns (int256 amount0, int256 amount1) {
-        require(amountSpecified != 0, 'AS');
-
-        Slot0 memory slot0Start = slot0;
-
-        require(slot0Start.unlocked, 'LOK');
-        require(
-            zeroForOne
-                ? sqrtPriceLimitX96 < slot0Start.sqrtPriceX96 && sqrtPriceLimitX96 > TickMath.MIN_SQRT_RATIO
-                : sqrtPriceLimitX96 > slot0Start.sqrtPriceX96 && sqrtPriceLimitX96 < TickMath.MAX_SQRT_RATIO,
-            'SPL'
+        // encode calldata
+        uint32 time = _blockTimestamp();
+        bytes32 settings = poolTokenSettings;
+        bool isBaseToken0 = PoolTokenSettings.isBaseToken0(settings);
+        bool isBaseToken1 = PoolTokenSettings.isBaseToken1(settings);
+        bytes memory calldata_ = abi.encodeWithSelector(
+            IEthAfPoolActionsModule.swap.selector,
+            IEthAfPoolActionsModule.SwapParams({
+                recipient: recipient,
+                zeroForOne: zeroForOne,
+                amountSpecified: amountSpecified,
+                sqrtPriceLimitX96: sqrtPriceLimitX96,
+                fee: fee,
+                token0: token0,
+                token1: token1,
+                timestamp: time,
+                data: data,
+                isBaseToken0: isBaseToken0,
+                isBaseToken1: isBaseToken1,
+                tickSpacing: tickSpacing
+            })
         );
-
-        slot0.unlocked = false;
-
-        SwapCache memory cache =
-            SwapCache({
-                liquidityStart: liquidity,
-                blockTimestamp: _blockTimestamp(),
-                feeProtocol: zeroForOne ? (slot0Start.feeProtocol % 16) : (slot0Start.feeProtocol >> 4),
-                secondsPerLiquidityCumulativeX128: 0,
-                tickCumulative: 0,
-                computedLatestObservation: false
-            });
-
-        bool exactInput = amountSpecified > 0;
-
-        SwapState memory state =
-            SwapState({
-                amountSpecifiedRemaining: amountSpecified,
-                amountCalculated: 0,
-                sqrtPriceX96: slot0Start.sqrtPriceX96,
-                tick: slot0Start.tick,
-                feeGrowthGlobalX128: zeroForOne ? feeGrowthGlobal0X128 : feeGrowthGlobal1X128,
-                protocolFee: 0,
-                liquidity: cache.liquidityStart
-            });
-
-        // continue swapping as long as we haven't used the entire input/output and haven't reached the price limit
-        while (state.amountSpecifiedRemaining != 0 && state.sqrtPriceX96 != sqrtPriceLimitX96) {
-            StepComputations memory step;
-
-            step.sqrtPriceStartX96 = state.sqrtPriceX96;
-
-            (step.tickNext, step.initialized) = tickBitmap.nextInitializedTickWithinOneWord(
-                state.tick,
-                tickSpacing,
-                zeroForOne
-            );
-
-            // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
-            if (step.tickNext < TickMath.MIN_TICK) {
-                step.tickNext = TickMath.MIN_TICK;
-            } else if (step.tickNext > TickMath.MAX_TICK) {
-                step.tickNext = TickMath.MAX_TICK;
-            }
-
-            // get the price for the next tick
-            step.sqrtPriceNextX96 = TickMath.getSqrtRatioAtTick(step.tickNext);
-
-            // compute values to swap to the target tick, price limit, or point where input/output amount is exhausted
-            (state.sqrtPriceX96, step.amountIn, step.amountOut, step.feeAmount) = SwapMath.computeSwapStep(
-                state.sqrtPriceX96,
-                (zeroForOne ? step.sqrtPriceNextX96 < sqrtPriceLimitX96 : step.sqrtPriceNextX96 > sqrtPriceLimitX96)
-                    ? sqrtPriceLimitX96
-                    : step.sqrtPriceNextX96,
-                state.liquidity,
-                state.amountSpecifiedRemaining,
-                fee
-            );
-
-            if (exactInput) {
-                state.amountSpecifiedRemaining -= (step.amountIn + step.feeAmount).toInt256();
-                state.amountCalculated = state.amountCalculated.sub(step.amountOut.toInt256());
-            } else {
-                state.amountSpecifiedRemaining += step.amountOut.toInt256();
-                state.amountCalculated = state.amountCalculated.add((step.amountIn + step.feeAmount).toInt256());
-            }
-
-            // if the protocol fee is on, calculate how much is owed, decrement feeAmount, and increment protocolFee
-            if (cache.feeProtocol > 0) {
-                uint256 delta = step.feeAmount / cache.feeProtocol;
-                step.feeAmount -= delta;
-                state.protocolFee += uint128(delta);
-            }
-
-            // update global fee tracker
-            {
-            (bool isBaseToken0, bool isBaseToken1) = getPoolTokenSettings();
-            if( (zeroForOne && isBaseToken0) || (!zeroForOne && isBaseToken1)) {
-                state.feeGrowthGlobalX128 += step.feeAmount;
-            } else {
-                if (state.liquidity > 0) {
-                    state.feeGrowthGlobalX128 += FullMath.mulDiv(step.feeAmount, FixedPoint128.Q128, state.liquidity);
-                }
-            }
-            }
-
-            // shift tick if we reached the next price
-            if (state.sqrtPriceX96 == step.sqrtPriceNextX96) {
-                // if the tick is initialized, run the tick transition
-                if (step.initialized) {
-                    // check for the placeholder value, which we replace with the actual value the first time the swap
-                    // crosses an initialized tick
-                    if (!cache.computedLatestObservation) {
-                        (cache.tickCumulative, cache.secondsPerLiquidityCumulativeX128) = observations.observeSingle(
-                            cache.blockTimestamp,
-                            0,
-                            slot0Start.tick,
-                            slot0Start.observationIndex,
-                            cache.liquidityStart,
-                            slot0Start.observationCardinality
-                        );
-                        cache.computedLatestObservation = true;
-                    }
-                    // do not reward fees for base token
-                    uint256 feeGrowth0;
-                    uint256 feeGrowth1;
-                    {
-                    (bool isBaseToken0, bool isBaseToken1) = getPoolTokenSettings();
-                    feeGrowth0 = (isBaseToken0
-                        ? 0
-                        : (zeroForOne ? state.feeGrowthGlobalX128 : feeGrowthGlobal0X128)
-                    );
-                    feeGrowth1 = (isBaseToken1
-                        ? 0
-                        : (zeroForOne ? feeGrowthGlobal1X128 : state.feeGrowthGlobalX128)
-                    );
-                    }
-                    int128 liquidityNet =
-                        ticks.cross(
-                            step.tickNext,
-                            feeGrowth0,
-                            feeGrowth1,
-                            cache.secondsPerLiquidityCumulativeX128,
-                            cache.tickCumulative,
-                            cache.blockTimestamp
-                        );
-                    // if we're moving leftward, we interpret liquidityNet as the opposite sign
-                    // safe because liquidityNet cannot be type(int128).min
-                    if (zeroForOne) liquidityNet = -liquidityNet;
-
-                    state.liquidity = LiquidityMath.addDelta(state.liquidity, liquidityNet);
-                }
-
-                state.tick = zeroForOne ? step.tickNext - 1 : step.tickNext;
-            } else if (state.sqrtPriceX96 != step.sqrtPriceStartX96) {
-                // recompute unless we're on a lower tick boundary (i.e. already transitioned ticks), and haven't moved
-                state.tick = TickMath.getTickAtSqrtRatio(state.sqrtPriceX96);
-            }
-        }
-
-        // update tick and write an oracle entry if the tick change
-        if (state.tick != slot0Start.tick) {
-            (uint16 observationIndex, uint16 observationCardinality) =
-                observations.write(
-                    slot0Start.observationIndex,
-                    cache.blockTimestamp,
-                    slot0Start.tick,
-                    cache.liquidityStart,
-                    slot0Start.observationCardinality,
-                    slot0Start.observationCardinalityNext
-                );
-            (slot0.sqrtPriceX96, slot0.tick, slot0.observationIndex, slot0.observationCardinality) = (
-                state.sqrtPriceX96,
-                state.tick,
-                observationIndex,
-                observationCardinality
-            );
-        } else {
-            // otherwise just update the price
-            slot0.sqrtPriceX96 = state.sqrtPriceX96;
-        }
-
-        // update liquidity if it changed
-        if (cache.liquidityStart != state.liquidity) liquidity = state.liquidity;
-
-        // calculate final amounts
-        (amount0, amount1) = zeroForOne == exactInput
-            ? (amountSpecified - state.amountSpecifiedRemaining, state.amountCalculated)
-            : (state.amountCalculated, amountSpecified - state.amountSpecifiedRemaining);
-
-        // update fee growth global and, if necessary, protocol fees
-        // overflow is acceptable, protocol has to withdraw before it hits type(uint128).max fees
-        {
-        // do not reward fees for base token
-        (bool isBaseToken0, bool isBaseToken1) = getPoolTokenSettings();
-        if (zeroForOne) {
-            if(isBaseToken0) {
-                uint256 feeAmount = uint256(amount0) - uint256(state.protocolFee);
-                swapFeesAccumulated0 += feeAmount * uint256(fee) / 1e6;
-            } else {
-                feeGrowthGlobal0X128 = state.feeGrowthGlobalX128;
-            }
-            if (state.protocolFee > 0) protocolFees.token0 += state.protocolFee;
-        } else {
-            if(isBaseToken1) {
-                uint256 feeAmount = uint256(amount1) - uint256(state.protocolFee);
-                swapFeesAccumulated1 += feeAmount * uint256(fee) / 1e6;
-            } else {
-                feeGrowthGlobal1X128 = state.feeGrowthGlobalX128;
-            }
-            if (state.protocolFee > 0) protocolFees.token1 += state.protocolFee;
-        }
-        }
-
-        // do the transfers and collect payment
-        if (zeroForOne) {
-            if (amount1 < 0) TransferHelper.safeTransfer(token1, recipient, uint256(-amount1));
-
-            uint256 balance0Before = balance0();
-            IEthAfSwapCallback(msg.sender).ethafSwapCallback(amount0, amount1, data);
-            require(balance0Before.add(uint256(amount0)) <= balance0(), 'IIA');
-        } else {
-            if (amount0 < 0) TransferHelper.safeTransfer(token0, recipient, uint256(-amount0));
-
-            uint256 balance1Before = balance1();
-            IEthAfSwapCallback(msg.sender).ethafSwapCallback(amount0, amount1, data);
-            require(balance1Before.add(uint256(amount1)) <= balance1(), 'IIA');
-        }
-
-        emit Swap(msg.sender, recipient, amount0, amount1, state.sqrtPriceX96, state.liquidity, state.tick);
-        slot0.unlocked = true;
+        // delegatecall into the pool actions module
+        (bool success, bytes memory returndata) = actionsModule.delegatecall(calldata_);
+        // check success
+        _requireSuccess(success, returndata);
+        // decode result
+        (amount0, amount1) = abi.decode(returndata, (int256, int256));
     }
 
     /// @inheritdoc IEthAfPoolActions
@@ -890,94 +458,24 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         uint256 amount1,
         bytes calldata data
     ) external override lock noDelegateCall {
-        // math
-        uint256 paid0;
-        uint256 paid1;
-        uint128 _liquidity = liquidity;
-        require(_liquidity > 0, 'L');
-        { // scope
-        uint256 fee0 = FullMath.mulDivRoundingUp(amount0, fee, 1e6);
-        uint256 fee1 = FullMath.mulDivRoundingUp(amount1, fee, 1e6);
-        uint256 balance0Before = balance0();
-        uint256 balance1Before = balance1();
-
-        // optimistic transfer out
-        if (amount0 > 0) TransferHelper.safeTransfer(token0, recipient, amount0);
-        if (amount1 > 0) TransferHelper.safeTransfer(token1, recipient, amount1);
-
-        // flash callback
-        IEthAfFlashCallback(msg.sender).ethafFlashCallback(fee0, fee1, data);
-
-        // math
-        uint256 balance0After = balance0();
-        uint256 balance1After = balance1();
-
-        require(balance0Before.add(fee0) <= balance0After, 'F0');
-        require(balance1Before.add(fee1) <= balance1After, 'F1');
-
-        // sub is safe because we know balanceAfter is gt balanceBefore by at least fee
-        paid0 = balance0After - balance0Before;
-        paid1 = balance1After - balance1Before;
-        }
-
-        // distribute rewards
-        (bool isBaseToken0, bool isBaseToken1) = getPoolTokenSettings();
-        if (paid0 > 0) {
-            uint8 feeProtocol0 = slot0.feeProtocol % 16;
-            uint256 fees0 = feeProtocol0 == 0 ? 0 : paid0 / feeProtocol0;
-            if (uint128(fees0) > 0) protocolFees.token0 += uint128(fees0);
-            if(isBaseToken0) {
-                swapFeesAccumulated0 += (paid0 - fees0);
-            } else {
-                feeGrowthGlobal0X128 += FullMath.mulDiv(paid0 - fees0, FixedPoint128.Q128, _liquidity);
-            }
-        }
-        if (paid1 > 0) {
-            uint8 feeProtocol1 = slot0.feeProtocol >> 4;
-            uint256 fees1 = feeProtocol1 == 0 ? 0 : paid1 / feeProtocol1;
-            if (uint128(fees1) > 0) protocolFees.token1 += uint128(fees1);
-            if(isBaseToken1) {
-                swapFeesAccumulated1 += (paid1 - fees1);
-            } else {
-                feeGrowthGlobal1X128 += FullMath.mulDiv(paid1 - fees1, FixedPoint128.Q128, _liquidity);
-            }
-        }
-
-        emit Flash(msg.sender, recipient, amount0, amount1, paid0, paid1);
-    }
-
-    /// @inheritdoc IEthAfPoolOwnerActions
-    function setFeeProtocol(uint8 feeProtocol0, uint8 feeProtocol1) external override lock onlyFactoryOwner {
-        require(
-            (feeProtocol0 == 0 || (feeProtocol0 >= 4 && feeProtocol0 <= 10)) &&
-                (feeProtocol1 == 0 || (feeProtocol1 >= 4 && feeProtocol1 <= 10))
+        // encode calldata
+        bytes memory calldata_ = abi.encodeWithSelector(
+            IEthAfPoolActionsModule.flash.selector,
+            IEthAfPoolActionsModule.FlashParams({
+                recipient: recipient,
+                amount0: amount0,
+                amount1: amount1,
+                token0: token0,
+                token1: token1,
+                fee: fee,
+                data: data,
+                poolTokenSettings: poolTokenSettings
+            })
         );
-        uint8 feeProtocolOld = slot0.feeProtocol;
-        slot0.feeProtocol = feeProtocol0 + (feeProtocol1 << 4);
-        emit SetFeeProtocol(feeProtocolOld % 16, feeProtocolOld >> 4, feeProtocol0, feeProtocol1);
-    }
-
-    /// @inheritdoc IEthAfPoolOwnerActions
-    function collectProtocol(
-        address recipient,
-        uint128 amount0Requested,
-        uint128 amount1Requested
-    ) external override lock onlyFactoryOwner returns (uint128 amount0, uint128 amount1) {
-        amount0 = amount0Requested > protocolFees.token0 ? protocolFees.token0 : amount0Requested;
-        amount1 = amount1Requested > protocolFees.token1 ? protocolFees.token1 : amount1Requested;
-
-        if (amount0 > 0) {
-            if (amount0 == protocolFees.token0) amount0--; // ensure that the slot is not cleared, for gas savings
-            protocolFees.token0 -= amount0;
-            TransferHelper.safeTransfer(token0, recipient, amount0);
-        }
-        if (amount1 > 0) {
-            if (amount1 == protocolFees.token1) amount1--; // ensure that the slot is not cleared, for gas savings
-            protocolFees.token1 -= amount1;
-            TransferHelper.safeTransfer(token1, recipient, amount1);
-        }
-
-        emit CollectProtocol(msg.sender, recipient, amount0, amount1);
+        // delegatecall into the pool actions module
+        (bool success, bytes memory returndata) = actionsModule.delegatecall(calldata_);
+        // check success
+        _requireSuccess(success, returndata);
     }
 
     /// @inheritdoc IEthAfPoolActions
@@ -993,43 +491,49 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         token0_ = token0;
         token1_ = token1;
 
-        bool token0SupportsNativeYield;
-        bool token1SupportsNativeYield;
-        (isBaseToken0, isBaseToken1, token0SupportsNativeYield, token1SupportsNativeYield) = getPoolTokenSettingsFull();
+        bytes32 settings = poolTokenSettings;
+        isBaseToken0 = PoolTokenSettings.isBaseToken0(settings);
+        isBaseToken1 = PoolTokenSettings.isBaseToken1(settings);
 
-        uint256 amount = swapFeesAccumulated0;
-        if(token0SupportsNativeYield) {
-            uint256 claimableAmount = IERC20Rebasing(token0_).getClaimableAmount(address(this));
-            if(claimableAmount > 0) {
-                uint256 bal1 = balance0();
-                IERC20Rebasing(token0_).claim(address(this), claimableAmount);
-                uint256 diff = balance0() - bal1;
-                if(diff > 0) amount += diff;
-            }
-        }
-        if(amount > 0) {
-            TransferHelper.safeTransfer(token0_, distributor, amount);
-            swapFeesAccumulated0 = 0;
-        }
-
-        amount = swapFeesAccumulated1;
-        if(token1SupportsNativeYield) {
-            uint256 claimableAmount = IERC20Rebasing(token1_).getClaimableAmount(address(this));
-            if(claimableAmount > 0) {
-                uint256 bal1 = balance1();
-                IERC20Rebasing(token1_).claim(address(this), claimableAmount);
-                uint256 diff = balance1() - bal1;
-                if(diff > 0) amount += diff;
-            }
-        }
-        if(amount > 0) {
-            TransferHelper.safeTransfer(token1_, distributor, amount);
-            swapFeesAccumulated1 = 0;
-        }
-
+        // encode calldata
+        bytes memory calldata_ = abi.encodeWithSelector(IEthAfPoolCollectModule.collectBaseToken.selector, distributor, token0_, token1_, settings);
+        // delegatecall into the pool collect module
+        (bool success, bytes memory returndata) = collectModule.delegatecall(calldata_);
+        // check success
+        _requireSuccess(success, returndata);
     }
 
-    function getPoolTokenSettings() public view override returns (
+    // owner actions
+
+    /// @inheritdoc IEthAfPoolOwnerActions
+    function setFeeProtocol(uint8 feeProtocol0, uint8 feeProtocol1) external override lock onlyFactoryOwner {
+        // encode calldata
+        bytes memory calldata_ = abi.encodeWithSelector(IEthAfPoolProtocolFeeModule.setFeeProtocol.selector, feeProtocol0, feeProtocol1);
+        // delegatecall into the pool protocol module
+        (bool success, bytes memory returndata) = protocolModule.delegatecall(calldata_);
+        // check success
+        _requireSuccess(success, returndata);
+    }
+
+    /// @inheritdoc IEthAfPoolOwnerActions
+    function collectProtocol(
+        address recipient,
+        uint128 amount0Requested,
+        uint128 amount1Requested
+    ) external override lock onlyFactoryOwner returns (uint128 amount0, uint128 amount1) {
+        // encode calldata
+        bytes memory calldata_ = abi.encodeWithSelector(IEthAfPoolProtocolFeeModule.collectProtocol.selector, recipient, amount0Requested, amount1Requested, token0, token1);
+        // delegatecall into the pool protocol module
+        (bool success, bytes memory returndata) = protocolModule.delegatecall(calldata_);
+        // check success
+        _requireSuccess(success, returndata);
+        // decode result
+        (amount0, amount1) = abi.decode(returndata, (uint128, uint128));
+    }
+
+    // added view functions
+
+    function getPoolTokenSettings() external view override returns (
         bool isBaseToken0,
         bool isBaseToken1
     ) {
@@ -1038,7 +542,7 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         isBaseToken1 = PoolTokenSettings.isBaseToken1(settings);
     }
 
-    function getPoolTokenSettingsFull() internal view returns (
+    function getPoolTokenSettingsFull() public view returns (
         bool isBaseToken0,
         bool isBaseToken1,
         bool token0SupportsNativeYield,
@@ -1049,5 +553,49 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         isBaseToken1 = PoolTokenSettings.isBaseToken1(settings);
         token0SupportsNativeYield = PoolTokenSettings.token0SupportsNativeYield(settings);
         token1SupportsNativeYield = PoolTokenSettings.token1SupportsNativeYield(settings);
+    }
+
+    function baseTokensAccumulated() external view returns (uint256 amount0, uint256 amount1) {
+        BaseTokensAccumulated storage _baseTokensAcc = getBaseTokensAccumulated();
+        amount0 = _baseTokensAcc.amount0;
+        amount1 = _baseTokensAcc.amount1;
+    }
+
+    // helper functions
+
+    /// @dev Common checks for valid tick inputs.
+    function checkTicks(int24 tickLower, int24 tickUpper) private pure {
+        require(tickLower < tickUpper, 'TLU');
+        require(tickLower >= TickMath.MIN_TICK, 'TLM');
+        require(tickUpper <= TickMath.MAX_TICK, 'TUM');
+    }
+
+    /// @dev Returns the block timestamp truncated to 32 bits, i.e. mod 2**32. This method is overridden in tests.
+    function _blockTimestamp() internal view virtual returns (uint32) {
+        return uint32(block.timestamp); // truncation is desired
+    }
+
+    /// @dev Requires a call to be successful, otherwise reverts
+    function _requireSuccess(bool success, bytes memory data) internal pure {
+        if(!success) {
+            // look for revert reason and bubble it up if present
+            if(data.length > 0) {
+                // the easiest way to bubble the revert reason is using memory via assembly
+                assembly {
+                    let data_size := mload(data)
+                    revert(add(32, data), data_size)
+                }
+            } else {
+                revert();
+            }
+        }
+    }
+
+    /// @dev Gets the storage pointer for baseTokensAccumulated
+    function getBaseTokensAccumulated() internal pure returns (BaseTokensAccumulated storage _baseTokensAcc) {
+        bytes32 position = BASE_TOKENS_ACCUMULATED_SLOT;
+        assembly {
+            _baseTokensAcc.slot := position
+        }
     }
 }

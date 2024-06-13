@@ -2,6 +2,9 @@ import { BigNumber, BigNumberish, Wallet, ContractTransaction } from 'ethers'
 import { ethers, waffle } from 'hardhat'
 import { EthAfFactory } from '../typechain/EthAfFactory'
 import { EthAfPoolDeployerModule } from '../typechain/EthAfPoolDeployerModule'
+import { EthAfPoolActionsModule } from '../typechain/EthAfPoolActionsModule'
+import { EthAfPoolCollectModule } from '../typechain/EthAfPoolCollectModule'
+import { EthAfPoolProtocolFeeModule } from '../typechain/EthAfPoolProtocolFeeModule'
 import { EthAfSwapFeeDistributor } from '../typechain/EthAfSwapFeeDistributor'
 import { EthAfPool } from '../typechain/EthAfPool'
 import { TestERC20 } from '../typechain/TestERC20'
@@ -54,6 +57,10 @@ describe('EthAfPoolWithBaseToken5', () => {
   let swapFeeDistributor: EthAfSwapFeeDistributor
   let poolBytecode: string
 
+  let poolActionsModule: EthAfPoolActionsModule
+  let poolCollectModule: EthAfPoolCollectModule
+  let poolProtocolModule: EthAfPoolProtocolFeeModule
+
   let usdb: MockERC20Rebasing
   let weth: MockERC20Rebasing
 
@@ -99,12 +106,17 @@ describe('EthAfPoolWithBaseToken5', () => {
     mockBlastPoints = (await mockBlastPointsFactory.deploy()) as MockBlastPoints
 
     const poolDeployerModuleFactory = await ethers.getContractFactory('EthAfPoolDeployerModule')
-    poolDeployerModule = (await poolDeployerModuleFactory.deploy()) as EthAfPoolDeployerModule
+    poolDeployerModule = (await poolDeployerModuleFactory.deploy(mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfPoolDeployerModule
+    const poolActionsModuleFactory = await ethers.getContractFactory('EthAfPoolActionsModule')
+    poolActionsModule = (await poolActionsModuleFactory.deploy(mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfPoolActionsModule
+    const poolCollectModuleFactory = await ethers.getContractFactory('EthAfPoolCollectModule')
+    poolCollectModule = (await poolCollectModuleFactory.deploy(mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfPoolCollectModule
+    const poolProtocolModuleFactory = await ethers.getContractFactory('EthAfPoolProtocolFeeModule')
+    poolProtocolModule = (await poolProtocolModuleFactory.deploy(mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfPoolProtocolFeeModule
     const factoryFactory = await ethers.getContractFactory('EthAfFactory')
-    //const factory = (await factoryFactory.deploy(poolDeployerModule.address)) as EthAfFactory
-    factory = (await factoryFactory.deploy(poolDeployerModule.address, mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfFactory
+    factory = (await factoryFactory.deploy(poolDeployerModule.address, poolActionsModule.address, poolCollectModule.address, poolProtocolModule.address, mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfFactory
     const swapFeeDistributorFactory = await ethers.getContractFactory('EthAfSwapFeeDistributor')
-    swapFeeDistributor = (await swapFeeDistributorFactory.deploy(factory.address)) as EthAfSwapFeeDistributor
+    swapFeeDistributor = (await swapFeeDistributorFactory.deploy(factory.address, mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfSwapFeeDistributor
     await factory.setSwapFeeDistributor(swapFeeDistributor.address)
 
     const tokenFactory = await ethers.getContractFactory('TestERC20')
@@ -296,6 +308,17 @@ describe('EthAfPoolWithBaseToken5', () => {
       expect(blastParameters.gasCollector).eq(wallet.address)
       expect(blastParameters.pointsOperator).eq(wallet.address)
     })
+    it('factory has correct module parameters', async function () {
+      let moduleParameters = await factory.moduleParameters()
+      expect(moduleParameters.actionsModule).eq(poolActionsModule.address)
+      expect(moduleParameters.collectModule).eq(poolCollectModule.address)
+      expect(moduleParameters.protocolModule).eq(poolProtocolModule.address)
+    })
+    it('pool has correct modules', async function () {
+      expect(await pool0.actionsModule()).eq(poolActionsModule.address)
+      expect(await pool0.collectModule()).eq(poolCollectModule.address)
+      expect(await pool0.protocolModule()).eq(poolProtocolModule.address)
+    })
   })
 
   describe("distributing native yield", function () {
@@ -324,8 +347,10 @@ describe('EthAfPoolWithBaseToken5', () => {
       expect(diffP01.usdb).eq(amountUsdb_1)
       expect(diffP01.weth).eq(amountWeth_1)
 
-      let swapFeesAccumulated0_1 = await pool1.swapFeesAccumulated0()
-      expect(swapFeesAccumulated0_1).to.eq(amountUsdb_1.mul(5).div(10_000)) // swap fees from 5 bps
+      const baseTokensAccumulated_1 = await pool1.baseTokensAccumulated()
+      expect(baseTokensAccumulated_1.amount0).eq(amountUsdb_1.mul(5).div(10_000)) // swap fees from 5 bps
+      expect(baseTokensAccumulated_1.amount1).eq(0)
+
 
       await expect(p1).to.emit(pool1, "Swap")
       await expect(p1).to.emit(usdb, "Transfer").withArgs(pool1.address, swapFeeDistributor.address, amountUsdb_1)
@@ -351,10 +376,11 @@ describe('EthAfPoolWithBaseToken5', () => {
       expect(diffP12.usdb).eq(amountUsdb_2)
       expect(diffP12.weth).eq(amountWeth_2)
 
-      let swapFeesAccumulated0_2 = await pool1.swapFeesAccumulated0()
-      let expectedUsdbTransferAmount = amountUsdb_2.add(swapFeesAccumulated0_1)
+      let expectedUsdbTransferAmount = amountUsdb_2.add(baseTokensAccumulated_1.amount0)
       let expectedSwapFees = expectedUsdbTransferAmount.mul(5).div(10_000)
-      expect(swapFeesAccumulated0_2).to.eq(expectedSwapFees) // swap fees from 5 bps
+      const baseTokensAccumulated_2 = await pool1.baseTokensAccumulated()
+      expect(baseTokensAccumulated_2.amount0).eq(expectedSwapFees) // swap fees from 5 bps
+      expect(baseTokensAccumulated_2.amount1).eq(0)
 
       await expect(p2).to.emit(pool1, "Swap")
       await expect(p2).to.emit(usdb, "Transfer").withArgs(pool1.address, swapFeeDistributor.address, expectedUsdbTransferAmount)
@@ -389,8 +415,9 @@ describe('EthAfPoolWithBaseToken5', () => {
       expect(diffP01.usdb).eq(amountUsdb_1)
       expect(diffP01.weth).eq(amountWeth_1)
 
-      let swapFeesAccumulated0_1 = await pool1.swapFeesAccumulated0()
-      expect(swapFeesAccumulated0_1).to.eq(amountUsdb_1.mul(5).div(10_000)) // swap fees from 5 bps
+      const baseTokensAccumulated_1 = await pool1.baseTokensAccumulated()
+      expect(baseTokensAccumulated_1.amount0).eq(amountUsdb_1.mul(5).div(10_000)) // swap fees from 5 bps
+      expect(baseTokensAccumulated_1.amount1).eq(0)
 
       await expect(p1).to.emit(pool1, "Swap")
       await expect(p1).to.emit(usdb, "Transfer").withArgs(pool1.address, swapFeeDistributor.address, amountUsdb_1)
@@ -416,10 +443,11 @@ describe('EthAfPoolWithBaseToken5', () => {
       expect(diffP12.usdb).eq(amountUsdb_2)
       expect(diffP12.weth).eq(amountWeth_2)
 
-      let swapFeesAccumulated0_2 = await pool1.swapFeesAccumulated0()
-      let expectedUsdbTransferAmount = amountUsdb_2.add(swapFeesAccumulated0_1)
+      let expectedUsdbTransferAmount = amountUsdb_2.add(baseTokensAccumulated_1.amount0)
       let expectedSwapFees = expectedUsdbTransferAmount.mul(5).div(10_000)
-      expect(swapFeesAccumulated0_2).to.eq(expectedSwapFees) // swap fees from 5 bps
+      const baseTokensAccumulated_2 = await pool1.baseTokensAccumulated()
+      expect(baseTokensAccumulated_2.amount0).eq(expectedSwapFees) // swap fees from 5 bps
+      expect(baseTokensAccumulated_2.amount1).eq(0)
 
       await expect(p2).to.emit(pool1, "Swap")
       await expect(p2).to.emit(usdb, "Transfer").withArgs(pool1.address, swapFeeDistributor.address, expectedUsdbTransferAmount)

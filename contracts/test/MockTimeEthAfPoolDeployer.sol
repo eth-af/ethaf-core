@@ -15,6 +15,14 @@ contract MockTimeEthAfPoolDeployer {
 
     Parameters public parameters;
 
+    struct ModuleParameters {
+        address actionsModule;
+        address collectModule;
+        address protocolModule;
+    }
+
+    ModuleParameters public moduleParameters;
+
     struct BlastParameters {
         address blast;
         address blastPoints;
@@ -45,5 +53,11 @@ contract MockTimeEthAfPoolDeployer {
 
     function setPoolTokenSettings(bytes32 settings) external {
         poolTokenSettings = settings;
+    }
+
+    function setModuleParameters(address actionsModule, address collectModule, address protocolModule) external {
+        moduleParameters.actionsModule = actionsModule;
+        moduleParameters.collectModule = collectModule;
+        moduleParameters.protocolModule = protocolModule;
     }
 }

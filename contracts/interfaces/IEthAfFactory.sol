@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity >=0.5.0;
+pragma abicoder v2;
 
 /// @title The interface for the ETH AF Factory
 /// @notice The ETH AF Factory facilitates creation of ETH AF pools and control over the protocol fees
@@ -27,6 +28,12 @@ interface IEthAfFactory {
     /// @param fee The enabled fee, denominated in hundredths of a bip
     /// @param tickSpacing The minimum number of ticks between initialized ticks for pools created with the given fee
     event FeeAmountEnabled(uint24 indexed fee, int24 indexed tickSpacing);
+
+    event TokenSettingsSet(address indexed token, bytes32 settings);
+
+    event TokenPairSettingsSet(address indexed token0, address indexed token1, bytes32 settings);
+
+    event SwapFeeDistributorSet(address indexed distributor);
 
     /// @notice Returns the current owner of the factory
     /// @dev Can be changed by the current owner via setOwner
@@ -92,6 +99,16 @@ interface IEthAfFactory {
             bytes32 poolTokenSettings
         );
 
+    /// @notice Get the module parameters
+    function moduleParameters()
+        external
+        view
+        returns (
+            address actionsModule,
+            address collectModule,
+            address protocolModule
+        );
+
     /// @notice Get the Blast parameters
     function blastParameters()
         external
@@ -122,5 +139,22 @@ interface IEthAfFactory {
     /// @param index Index of the pool in the list
     /// @return pool The pool at the index in the list
     function allPools(uint256 index) external view returns (address pool);
+
+    struct SetTokenSettingsParam {
+        address token;
+        bytes32 settings;
+    }
+
+    function setTokenSettings(SetTokenSettingsParam[] calldata params) external;
+
+    struct SetTokenPairSettingsParam {
+        address token0; // order required
+        address token1;
+        bytes32 settings;
+    }
+
+    function setTokenPairSettings(SetTokenPairSettingsParam[] calldata params) external;
+
+    function setSwapFeeDistributor(address distributor) external;
 
 }

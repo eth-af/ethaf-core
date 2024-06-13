@@ -33,10 +33,28 @@ interface IEthAfPoolImmutables {
     /// @return The max amount of liquidity per tick
     function maxLiquidityPerTick() external view returns (uint128);
 
+    /// @notice The settings for the tokens in the pool
+    /// @dev byte encoded flags for base token and native yield
+    /// @return settings The settings
     function poolTokenSettings() external view returns (bytes32 settings);
 
+    /// @notice The settings for the tokens in the pool
+    /// @return isBaseToken0 True if token0 is the base token
+    /// @return isBaseToken1 True if token1 is the base token
     function getPoolTokenSettings() external view returns (
         bool isBaseToken0,
         bool isBaseToken1
     );
+
+    /// @notice The implementation address of the actions module
+    /// @return actionsModule_ The module
+    function actionsModule() external view returns (address actionsModule_);
+
+    /// @notice The implementation address of the collect module
+    /// @return collectModule_ The module
+    function collectModule() external view returns (address collectModule_);
+
+    /// @notice The implementation address of the protocol fees module
+    /// @return protocolModule_ The module
+    function protocolModule() external view returns (address protocolModule_);
 }

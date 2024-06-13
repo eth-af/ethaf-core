@@ -2,10 +2,15 @@ import { BigNumber, BigNumberish, Wallet, ContractTransaction } from 'ethers'
 import { ethers, waffle } from 'hardhat'
 import { EthAfFactory } from '../typechain/EthAfFactory'
 import { EthAfPoolDeployerModule } from '../typechain/EthAfPoolDeployerModule'
+import { EthAfPoolActionsModule } from '../typechain/EthAfPoolActionsModule'
+import { EthAfPoolCollectModule } from '../typechain/EthAfPoolCollectModule'
+import { EthAfPoolProtocolFeeModule } from '../typechain/EthAfPoolProtocolFeeModule'
 import { EthAfSwapFeeDistributor } from '../typechain/EthAfSwapFeeDistributor'
 import { EthAfPool } from '../typechain/EthAfPool'
 import { TestERC20 } from '../typechain/TestERC20'
 import { TestEthAfCallee } from '../typechain/TestEthAfCallee'
+import { MockBlast } from '../typechain/MockBlast'
+import { MockBlastPoints } from '../typechain/MockBlastPoints'
 import { expect } from './shared/expect'
 import snapshotGasCost from './shared/snapshotGasCost'
 const { formatUnits } = ethers.utils
@@ -59,11 +64,21 @@ describe('EthAfPoolWithBaseToken2', () => {
   let createPool: ThenArg<ReturnType<typeof poolFixture>>['createPool']
 
   const fixture = async () => {
+    const mockBlastFactory = await ethers.getContractFactory('MockBlast')
+    const mockBlast = (await mockBlastFactory.deploy()) as MockBlast
+    const mockBlastPointsFactory = await ethers.getContractFactory('MockBlastPoints')
+    const mockBlastPoints = (await mockBlastPointsFactory.deploy()) as MockBlastPoints
+
     const poolDeployerModuleFactory = await ethers.getContractFactory('EthAfPoolDeployerModule')
-    const poolDeployerModule = (await poolDeployerModuleFactory.deploy()) as EthAfPoolDeployerModule
+    const poolDeployerModule = (await poolDeployerModuleFactory.deploy(mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfPoolDeployerModule
+    const poolActionsModuleFactory = await ethers.getContractFactory('EthAfPoolActionsModule')
+    const poolActionsModule = (await poolActionsModuleFactory.deploy(mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfPoolActionsModule
+    const poolCollectModuleFactory = await ethers.getContractFactory('EthAfPoolCollectModule')
+    const poolCollectModule = (await poolCollectModuleFactory.deploy(mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfPoolCollectModule
+    const poolProtocolModuleFactory = await ethers.getContractFactory('EthAfPoolProtocolFeeModule')
+    const poolProtocolModule = (await poolProtocolModuleFactory.deploy(mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfPoolProtocolFeeModule
     const factoryFactory = await ethers.getContractFactory('EthAfFactory')
-    //const factory = (await factoryFactory.deploy(poolDeployerModule.address)) as EthAfFactory
-    const factory = (await factoryFactory.deploy(poolDeployerModule.address, AddressZero, AddressZero, AddressZero, AddressZero)) as EthAfFactory
+    const factory = (await factoryFactory.deploy(poolDeployerModule.address, poolActionsModule.address, poolCollectModule.address, poolProtocolModule.address, mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfFactory
     const swapFeeDistributorFactory = await ethers.getContractFactory('EthAfSwapFeeDistributor')
     const swapFeeDistributor = (await swapFeeDistributorFactory.deploy(factory.address)) as EthAfSwapFeeDistributor
     await factory.setSwapFeeDistributor(swapFeeDistributor.address)
@@ -211,10 +226,9 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_0 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_0).eq(0)
       expect(feeGrowthGlobal1X128_0).eq(0)
-      const swapFeesAccumulated0_0 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_0 = await pool.swapFeesAccumulated1()
-      expect(swapFeesAccumulated0_0).eq(0)
-      expect(swapFeesAccumulated1_0).eq(0)
+      const baseTokensAccumulated_0 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_0.amount0).eq(0)
+      expect(baseTokensAccumulated_0.amount1).eq(0)
 
       const balU0 = await getBalances(wallet.address)
       const balP0 = await getBalances(pool.address)
@@ -262,10 +276,9 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_1 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_1).eq(0)
       expect(feeGrowthGlobal1X128_1).eq(0)
-      const swapFeesAccumulated0_1 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_1 = await pool.swapFeesAccumulated1()
-      expect(swapFeesAccumulated0_1).eq(expectedSwapFees1)
-      expect(swapFeesAccumulated1_1).eq(0)
+      const baseTokensAccumulated_1 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_1.amount0).eq(expectedSwapFees1)
+      expect(baseTokensAccumulated_1.amount1).eq(0)
 
       const swapTestCase2 = {
         zeroForOne: true,
@@ -297,10 +310,9 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_2 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_2).eq(0)
       expect(feeGrowthGlobal1X128_2).eq(0)
-      const swapFeesAccumulated0_2 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_2 = await pool.swapFeesAccumulated1()
-      expect(swapFeesAccumulated0_2).eq(expectedSwapFees1.add(expectedSwapFees2))
-      expect(swapFeesAccumulated1_2).eq(0)
+      const baseTokensAccumulated_2 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_2.amount0).eq(expectedSwapFees1.add(expectedSwapFees2))
+      expect(baseTokensAccumulated_2.amount1).eq(0)
 
       const swapTestCase3 = {
         zeroForOne: false,
@@ -332,10 +344,9 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_3 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_3).eq(0)
       expect(feeGrowthGlobal1X128_3).gt(0) // earned fees as pump token
-      const swapFeesAccumulated0_3 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_3 = await pool.swapFeesAccumulated1()
-      expect(swapFeesAccumulated0_3).eq(expectedSwapFees1.add(expectedSwapFees2))
-      expect(swapFeesAccumulated1_3).eq(0)
+      const baseTokensAccumulated_3 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_3.amount0).eq(expectedSwapFees1.add(expectedSwapFees2))
+      expect(baseTokensAccumulated_3.amount1).eq(0)
 
       const swapTestCase4 = {
         zeroForOne: true,
@@ -367,10 +378,9 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_4 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_4).eq(0)
       expect(feeGrowthGlobal1X128_4).eq(feeGrowthGlobal1X128_3) // no diff
-      const swapFeesAccumulated0_4 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_4 = await pool.swapFeesAccumulated1()
-      expect(swapFeesAccumulated0_4).eq(expectedSwapFees1.add(expectedSwapFees2).add(expectedSwapFees4)) // more fees
-      expect(swapFeesAccumulated1_4).eq(0)
+      const baseTokensAccumulated_4 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_4.amount0).eq(expectedSwapFees1.add(expectedSwapFees2).add(expectedSwapFees4)) // more fees
+      expect(baseTokensAccumulated_4.amount1).eq(0)
 
       await swapFeeDistributor.distributeFeesForPool(pool.address)
       const balU5 = await getBalances(wallet.address)
@@ -400,11 +410,10 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_5 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_5).eq(0)
       expect(feeGrowthGlobal1X128_5).gt(feeGrowthGlobal1X128_4) // fees from redistribution
-      const swapFeesAccumulated0_5 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_5 = await pool.swapFeesAccumulated1()
       let expectedSwapFees5 = expectedSwapFees1.add(expectedSwapFees2).add(expectedSwapFees4).mul(100).div(10_000) // leftover from distribute
-      expect(swapFeesAccumulated0_5).eq(expectedSwapFees5) // more fees
-      expect(swapFeesAccumulated1_5).eq(0)
+      const baseTokensAccumulated_5 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_5.amount0).eq(expectedSwapFees5) // more fees
+      expect(baseTokensAccumulated_5.amount1).eq(0)
       expect(slot0_5.sqrtPriceX96).lt(slot0_4.sqrtPriceX96) // price change from distribution
       expect(slot0_5.tick).lt(slot0_4.tick) // price change from distribution
 
@@ -438,10 +447,9 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_6 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_6).eq(0)
       expect(feeGrowthGlobal1X128_6).eq(feeGrowthGlobal1X128_5) // no diff
-      const swapFeesAccumulated0_6 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_6 = await pool.swapFeesAccumulated1()
-      expect(swapFeesAccumulated0_6).eq(expectedSwapFees5.add(expectedSwapFees6)) // more fees
-      expect(swapFeesAccumulated1_6).eq(0)
+      const baseTokensAccumulated_6 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_6.amount0).eq(expectedSwapFees5.add(expectedSwapFees6)) // more fees
+      expect(baseTokensAccumulated_6.amount1).eq(0)
 
       const swapTestCase7 = {
         zeroForOne: false,
@@ -473,10 +481,9 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_7 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_7).eq(0)
       expect(feeGrowthGlobal1X128_7).gt(feeGrowthGlobal1X128_6) // more fees
-      const swapFeesAccumulated0_7 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_7 = await pool.swapFeesAccumulated1()
-      expect(swapFeesAccumulated0_7).eq(swapFeesAccumulated0_6) // no diff
-      expect(swapFeesAccumulated1_7).eq(0)
+      const baseTokensAccumulated_7 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_7.amount0).eq(baseTokensAccumulated_6.amount0) // no diff
+      expect(baseTokensAccumulated_7.amount1).eq(0)
 
       await swapFeeDistributor.distributeFeesForPool(pool.address)
       const balU8 = await getBalances(wallet.address)
@@ -506,11 +513,10 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_8 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_8).eq(0)
       expect(feeGrowthGlobal1X128_8).gt(feeGrowthGlobal1X128_7) // fees from redistribution
-      const swapFeesAccumulated0_8 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_8 = await pool.swapFeesAccumulated1()
-      let expectedSwapFees8 = swapFeesAccumulated0_7.mul(100).div(10_000) // leftover from distribute
-      expect(swapFeesAccumulated0_8).eq(expectedSwapFees8) // more fees
-      expect(swapFeesAccumulated1_8).eq(0)
+      let expectedSwapFees8 = baseTokensAccumulated_7.amount0.mul(100).div(10_000) // leftover from distribute
+      const baseTokensAccumulated_8 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_8.amount0).eq(expectedSwapFees8) // more fees
+      expect(baseTokensAccumulated_8.amount1).eq(0)
       expect(slot0_8.sqrtPriceX96).lt(slot0_7.sqrtPriceX96) // price change from distribution
       expect(slot0_8.tick).lt(slot0_7.tick) // price change from distribution
     })
@@ -590,10 +596,9 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_0 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_0).eq(0)
       expect(feeGrowthGlobal1X128_0).eq(0)
-      const swapFeesAccumulated0_0 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_0 = await pool.swapFeesAccumulated1()
-      expect(swapFeesAccumulated0_0).eq(0)
-      expect(swapFeesAccumulated1_0).eq(0)
+      const baseTokensAccumulated_0 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_0.amount0).eq(0)
+      expect(baseTokensAccumulated_0.amount1).eq(0)
 
       const balU0 = await getBalances(wallet.address)
       const balP0 = await getBalances(pool.address)
@@ -641,10 +646,9 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_1 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_1).eq(0)
       expect(feeGrowthGlobal1X128_1).eq(0)
-      const swapFeesAccumulated0_1 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_1 = await pool.swapFeesAccumulated1()
-      expect(swapFeesAccumulated0_1).eq(0)
-      expect(swapFeesAccumulated1_1).eq(expectedSwapFees1)
+      const baseTokensAccumulated_1 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_1.amount0).eq(0)
+      expect(baseTokensAccumulated_1.amount1).eq(expectedSwapFees1)
 
       const swapTestCase2 = {
         zeroForOne: false,
@@ -676,10 +680,9 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_2 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_2).eq(0)
       expect(feeGrowthGlobal1X128_2).eq(0)
-      const swapFeesAccumulated0_2 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_2 = await pool.swapFeesAccumulated1()
-      expect(swapFeesAccumulated0_2).eq(0)
-      expect(swapFeesAccumulated1_2).eq(expectedSwapFees1.add(expectedSwapFees2))
+      const baseTokensAccumulated_2 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_2.amount0).eq(0)
+      expect(baseTokensAccumulated_2.amount1).eq(expectedSwapFees1.add(expectedSwapFees2))
 
       const swapTestCase3 = {
         zeroForOne: true,
@@ -711,10 +714,9 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_3 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_3).gt(0) // earned fees as pump token
       expect(feeGrowthGlobal1X128_3).eq(0)
-      const swapFeesAccumulated0_3 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_3 = await pool.swapFeesAccumulated1()
-      expect(swapFeesAccumulated0_3).eq(0)
-      expect(swapFeesAccumulated1_3).eq(expectedSwapFees1.add(expectedSwapFees2))
+      const baseTokensAccumulated_3 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_3.amount0).eq(0)
+      expect(baseTokensAccumulated_3.amount1).eq(expectedSwapFees1.add(expectedSwapFees2))
 
       const swapTestCase4 = {
         zeroForOne: false,
@@ -746,10 +748,9 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_4 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_4).eq(feeGrowthGlobal0X128_3) // no diff
       expect(feeGrowthGlobal1X128_4).eq(0)
-      const swapFeesAccumulated0_4 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_4 = await pool.swapFeesAccumulated1()
-      expect(swapFeesAccumulated0_4).eq(0)
-      expect(swapFeesAccumulated1_4).eq(expectedSwapFees1.add(expectedSwapFees2).add(expectedSwapFees4)) // more fees
+      const baseTokensAccumulated_4 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_4.amount0).eq(0)
+      expect(baseTokensAccumulated_4.amount1).eq(expectedSwapFees1.add(expectedSwapFees2).add(expectedSwapFees4)) // more fees
 
       await swapFeeDistributor.distributeFeesForPool(pool.address)
       const balU5 = await getBalances(wallet.address)
@@ -779,11 +780,10 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_5 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_5).gt(feeGrowthGlobal1X128_4) // fees from redistribution
       expect(feeGrowthGlobal1X128_5).eq(0)
-      const swapFeesAccumulated0_5 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_5 = await pool.swapFeesAccumulated1()
       let expectedSwapFees5 = expectedSwapFees1.add(expectedSwapFees2).add(expectedSwapFees4).mul(100).div(10_000) // leftover from distribute
-      expect(swapFeesAccumulated0_5).eq(0)
-      expect(swapFeesAccumulated1_5).eq(expectedSwapFees5) // more fees
+      const baseTokensAccumulated_5 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_5.amount0).eq(0)
+      expect(baseTokensAccumulated_5.amount1).eq(expectedSwapFees5) // more fees
       expect(slot0_5.sqrtPriceX96).gt(slot0_4.sqrtPriceX96) // price change from distribution
       expect(slot0_5.tick).gt(slot0_4.tick) // price change from distribution
 
@@ -817,10 +817,9 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_6 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_6).eq(feeGrowthGlobal0X128_5) // no diff
       expect(feeGrowthGlobal1X128_6).eq(0)
-      const swapFeesAccumulated0_6 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_6 = await pool.swapFeesAccumulated1()
-      expect(swapFeesAccumulated0_6).eq(0)
-      expect(swapFeesAccumulated1_6).eq(expectedSwapFees5.add(expectedSwapFees6)) // more fees
+      const baseTokensAccumulated_6 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_6.amount0).eq(0)
+      expect(baseTokensAccumulated_6.amount1).eq(expectedSwapFees5.add(expectedSwapFees6)) // more fees
 
       const swapTestCase7 = {
         zeroForOne: true,
@@ -852,10 +851,9 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_7 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_7).gt(feeGrowthGlobal0X128_6) // more fees
       expect(feeGrowthGlobal1X128_7).eq(0)
-      const swapFeesAccumulated0_7 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_7 = await pool.swapFeesAccumulated1()
-      expect(swapFeesAccumulated0_7).eq(0)
-      expect(swapFeesAccumulated1_7).eq(swapFeesAccumulated1_6) // no diff
+      const baseTokensAccumulated_7 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_7.amount0).eq(0)
+      expect(baseTokensAccumulated_7.amount1).eq(baseTokensAccumulated_6.amount1) // no diff
 
       await swapFeeDistributor.distributeFeesForPool(pool.address)
       const balU8 = await getBalances(wallet.address)
@@ -885,11 +883,10 @@ describe('EthAfPoolWithBaseToken2', () => {
       const feeGrowthGlobal1X128_8 = await pool.feeGrowthGlobal1X128()
       expect(feeGrowthGlobal0X128_8).gt(feeGrowthGlobal1X128_7) // fees from redistribution
       expect(feeGrowthGlobal1X128_8).eq(0)
-      const swapFeesAccumulated0_8 = await pool.swapFeesAccumulated0()
-      const swapFeesAccumulated1_8 = await pool.swapFeesAccumulated1()
-      let expectedSwapFees8 = swapFeesAccumulated1_7.mul(100).div(10_000) // leftover from distribute
-      expect(swapFeesAccumulated0_8).eq(0)
-      expect(swapFeesAccumulated1_8).eq(expectedSwapFees8) // more fees
+      let expectedSwapFees8 = baseTokensAccumulated_6.amount1.mul(100).div(10_000) // leftover from distribute
+      const baseTokensAccumulated_8 = await pool.baseTokensAccumulated()
+      expect(baseTokensAccumulated_8.amount0).eq(0)
+      expect(baseTokensAccumulated_8.amount1).eq(expectedSwapFees8) // more fees
       expect(slot0_8.sqrtPriceX96).gt(slot0_7.sqrtPriceX96) // price change from distribution
       expect(slot0_8.tick).gt(slot0_7.tick) // price change from distribution
     })
