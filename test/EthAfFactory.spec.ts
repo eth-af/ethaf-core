@@ -82,6 +82,7 @@ describe('EthAfFactory', () => {
   })
 
   it('initial enabled fee amounts', async () => {
+    expect(await factory.feeAmountTickSpacing(FeeAmount.LOWEST)).to.eq(TICK_SPACINGS[FeeAmount.LOWEST])
     expect(await factory.feeAmountTickSpacing(FeeAmount.LOW)).to.eq(TICK_SPACINGS[FeeAmount.LOW])
     expect(await factory.feeAmountTickSpacing(FeeAmount.MEDIUM)).to.eq(TICK_SPACINGS[FeeAmount.MEDIUM])
     expect(await factory.feeAmountTickSpacing(FeeAmount.HIGH)).to.eq(TICK_SPACINGS[FeeAmount.HIGH])
@@ -200,7 +201,7 @@ describe('EthAfFactory', () => {
 
   describe('#enableFeeAmount', () => {
     it('fails if caller is not owner', async () => {
-      await expect(factory.connect(other).enableFeeAmount(100, 2)).to.be.reverted
+      await expect(factory.connect(other).enableFeeAmount(80, 2)).to.be.reverted
     })
     it('fails if fee is too great', async () => {
       await expect(factory.enableFeeAmount(1000000, 10)).to.be.reverted
@@ -212,15 +213,15 @@ describe('EthAfFactory', () => {
       await expect(factory.enableFeeAmount(500, 16834)).to.be.reverted
     })
     it('fails if already initialized', async () => {
-      await factory.enableFeeAmount(100, 5)
-      await expect(factory.enableFeeAmount(100, 10)).to.be.reverted
+      await factory.enableFeeAmount(80, 5)
+      await expect(factory.enableFeeAmount(80, 10)).to.be.reverted
     })
     it('sets the fee amount in the mapping', async () => {
-      await factory.enableFeeAmount(100, 5)
-      expect(await factory.feeAmountTickSpacing(100)).to.eq(5)
+      await factory.enableFeeAmount(80, 5)
+      expect(await factory.feeAmountTickSpacing(80)).to.eq(5)
     })
     it('emits an event', async () => {
-      await expect(factory.enableFeeAmount(100, 5)).to.emit(factory, 'FeeAmountEnabled').withArgs(100, 5)
+      await expect(factory.enableFeeAmount(80, 5)).to.emit(factory, 'FeeAmountEnabled').withArgs(80, 5)
     })
     it('enables pool creation', async () => {
       await factory.enableFeeAmount(250, 15)
