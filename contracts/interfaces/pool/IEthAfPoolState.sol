@@ -113,4 +113,10 @@ interface IEthAfPoolState {
             uint160 secondsPerLiquidityCumulativeX128,
             bool initialized
         );
+
+
+    /// @notice Returns the amount of the base token that have been accumulated
+    /// Returns amount0 The amount of amount0 accumulated
+    /// Returns amount1 The amount of amount1 accumulated
+    function baseTokensAccumulated() external view returns (uint256 amount0, uint256 amount1);
 }
