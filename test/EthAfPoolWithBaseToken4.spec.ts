@@ -204,6 +204,9 @@ describe('EthAfPoolWithBaseToken4', () => {
     tickSpacing: number = TICK_SPACINGS[feeAmount],
     expectedPoolTokenSettings:any = undefined
   ) {
+    if(!!expectedPoolTokenSettings) {
+      expect(await factory.calculatePoolTokenSettings(tokens[0], tokens[1]), 'pool token settings').to.eq(expectedPoolTokenSettings)
+    }
     const create2Address = getCreate2Address(factory.address, tokens, feeAmount, poolBytecode)
     const create = factory.createPool(tokens[0], tokens[1], feeAmount)
 

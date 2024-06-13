@@ -159,6 +159,15 @@ describe('EthAfPoolWithBaseToken5', () => {
       }
     ]) // others are pump tokens
 
+    let usdbSetings = await factory.getTokenSettings(usdb.address)
+    expect(usdbSetings.isBaseTokenUSD).to.eq(true)
+    expect(usdbSetings.isBaseTokenETH).to.eq(false)
+    expect(usdbSetings.supportsNativeYield).to.eq(true)
+    let wethSetings = await factory.getTokenSettings(weth.address)
+    expect(wethSetings.isBaseTokenUSD).to.eq(false)
+    expect(wethSetings.isBaseTokenETH).to.eq(true)
+    expect(wethSetings.supportsNativeYield).to.eq(true)
+
     const expectedSettings = [
       // NO_BASE_TOKEN
       {
@@ -317,6 +326,9 @@ describe('EthAfPoolWithBaseToken5', () => {
     expectedPoolTokenSettings:any = undefined,
     expectedPoolTokenSettingsDecoded:any = undefined
   ) {
+    if(!!expectedPoolTokenSettings) {
+      expect(await factory.calculatePoolTokenSettings(tokens[0], tokens[1]), 'pool token settings').to.eq(expectedPoolTokenSettings)
+    }
     const create2Address = getCreate2Address(factory.address, tokens, feeAmount, poolBytecode)
     const create = factory.createPool(tokens[0], tokens[1], feeAmount)
 

@@ -164,10 +164,18 @@ interface IEthAfFactory {
     /// @param token The token address
     /// @return isBaseTokenUSD True if the token is a candidate to be a base token and is USD pegged
     /// @return isBaseTokenETH True if the token is a candidate to be a base token and is ETH pegged
+    /// @return supportsNativeYield True if the token supports ERC20Rebasing
     function getTokenSettings(address token) external view returns (
         bool isBaseTokenUSD,
-        bool isBaseTokenETH
+        bool isBaseTokenETH,
+        bool supportsNativeYield
     );
+
+    /// @notice Calculates the token settings to use in a pool with these tokens
+    /// @param token0 The token0 address
+    /// @param token1 The token1 address
+    /// @return poolTokenSettings The pool token settings bytes encoded
+    function calculatePoolTokenSettings(address token0, address token1) external view returns (bytes32 poolTokenSettings);
 
     struct SetTokenSettingsParam {
         address token;

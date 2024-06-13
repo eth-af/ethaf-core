@@ -226,11 +226,18 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
     /// @inheritdoc IEthAfFactory
     function getTokenSettings(address token) external view override returns (
         bool isBaseTokenUSD,
-        bool isBaseTokenETH
+        bool isBaseTokenETH,
+        bool supportsNativeYield
     ) {
         bytes32 settings = tokenSettings[token];
         isBaseTokenUSD = FactoryTokenSettings.isBaseTokenUSD(settings);
         isBaseTokenETH = FactoryTokenSettings.isBaseTokenETH(settings);
+        supportsNativeYield = FactoryTokenSettings.supportsNativeYield(settings);
+    }
+
+    /// @inheritdoc IEthAfFactory
+    function calculatePoolTokenSettings(address token0, address token1) external view override returns (bytes32 poolTokenSettings) {
+        poolTokenSettings = _calculatePoolTokenSettings(token0, token1);
     }
 
     /// @inheritdoc IEthAfFactory
