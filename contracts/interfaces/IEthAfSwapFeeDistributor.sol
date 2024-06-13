@@ -11,6 +11,9 @@ interface IEthAfSwapFeeDistributor {
     /// @param newOwner The owner after the owner was changed
     event OwnerChanged(address indexed oldOwner, address indexed newOwner);
 
+    /// @notice Emitted when the safe gas for looping is changed
+    /// @param gasLimitStart The amount of gas required to start a loop
+    /// @param gasLimitStart The amount of gas passed into the distribute call
     event SetSafeGasPerLoop(uint256 gasLimitStart, uint256 gasLimitDistribute);
 
     event SwapFeesDistributed(address indexed pool);

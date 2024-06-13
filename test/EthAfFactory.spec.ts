@@ -2,6 +2,11 @@ import { Wallet } from 'ethers'
 import { ethers, waffle } from 'hardhat'
 import { EthAfFactory } from '../typechain/EthAfFactory'
 import { EthAfPoolDeployerModule } from '../typechain/EthAfPoolDeployerModule'
+import { EthAfPoolActionsModule } from '../typechain/EthAfPoolActionsModule'
+import { EthAfPoolCollectModule } from '../typechain/EthAfPoolCollectModule'
+import { EthAfPoolProtocolFeeModule } from '../typechain/EthAfPoolProtocolFeeModule'
+import { MockBlast } from '../typechain/MockBlast'
+import { MockBlastPoints } from '../typechain/MockBlastPoints'
 import { expect } from './shared/expect'
 import snapshotGasCost from './shared/snapshotGasCost'
 
@@ -26,12 +31,23 @@ describe('EthAfFactory', () => {
   let poolDeployerModule: EthAfPoolDeployerModule
   let poolBytecode: string
   const fixture = async () => {
+    const mockBlastFactory = await ethers.getContractFactory('MockBlast')
+    const mockBlast = (await mockBlastFactory.deploy()) as MockBlast
+    const mockBlastPointsFactory = await ethers.getContractFactory('MockBlastPoints')
+    const mockBlastPoints = (await mockBlastPointsFactory.deploy()) as MockBlastPoints
+
     const poolDeployerModuleFactory = await ethers.getContractFactory('EthAfPoolDeployerModule')
-    const poolDeployerModule = (await poolDeployerModuleFactory.deploy()) as EthAfPoolDeployerModule
+    const poolDeployerModule = (await poolDeployerModuleFactory.deploy(mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfPoolDeployerModule
+    const poolActionsModuleFactory = await ethers.getContractFactory('EthAfPoolActionsModule')
+    const poolActionsModule = (await poolActionsModuleFactory.deploy(mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfPoolActionsModule
+    const poolCollectModuleFactory = await ethers.getContractFactory('EthAfPoolCollectModule')
+    const poolCollectModule = (await poolCollectModuleFactory.deploy(mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfPoolCollectModule
+    const poolProtocolModuleFactory = await ethers.getContractFactory('EthAfPoolProtocolFeeModule')
+    const poolProtocolModule = (await poolProtocolModuleFactory.deploy(mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfPoolProtocolFeeModule
+
     const factoryFactory = await ethers.getContractFactory('EthAfFactory')
-    //const factory = (await factoryFactory.deploy(poolDeployerModule.address)) as EthAfFactory
-    const factory = (await factoryFactory.deploy(poolDeployerModule.address, AddressZero, AddressZero, AddressZero, AddressZero)) as EthAfFactory
-    return { factory, poolDeployerModule }
+    const factory = (await factoryFactory.deploy(poolDeployerModule.address, poolActionsModule.address, poolCollectModule.address, poolProtocolModule.address, mockBlast.address, mockBlastPoints.address, wallet.address, wallet.address)) as EthAfFactory
+    return { factory, poolDeployerModule, poolActionsModule, poolProtocolModule }
   }
 
   let loadFixture: ReturnType<typeof createFixtureLoader>

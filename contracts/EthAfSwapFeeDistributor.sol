@@ -11,6 +11,9 @@ import './interfaces/IEthAfSwapFeeDistributor.sol';
 import './interfaces/callback/IEthAfSwapCallback.sol';
 import './interfaces/callback/IEthAfFlashCallback.sol';
 
+import './interfaces/external/Blast/IBlast.sol';
+import './interfaces/external/Blast/IBlastPoints.sol';
+
 
 /// @title EthAfSwapFeeDistributor
 /// @notice Distributes the swap fees of EthAfPools
@@ -26,7 +29,11 @@ contract EthAfSwapFeeDistributor is IEthAfSwapFeeDistributor, IEthAfSwapCallback
     uint256 public override safeGasForDistribute;
 
     constructor(
-        address _factory
+        address _factory,
+        address blast,
+        address blastPoints,
+        address gasCollector,
+        address pointsOperator
     ) {
         owner = msg.sender;
         emit OwnerChanged(address(0), msg.sender);
@@ -35,6 +42,18 @@ contract EthAfSwapFeeDistributor is IEthAfSwapFeeDistributor, IEthAfSwapCallback
 
         safeGasStartLoop = 330_000; // safe limits found from tests
         safeGasForDistribute = 300_000;
+
+        // calls to setup blast
+        if(blast != address(0)) {
+            IBlast(blast).configureClaimableGas();
+            if(gasCollector != address(0)) {
+                IBlast(blast).configureGovernor(gasCollector);
+            }
+
+        }
+        if(blastPoints != address(0) && pointsOperator != address(0)) {
+            IBlastPoints(blastPoints).configurePointsOperator(pointsOperator);
+        }
     }
 
     // distribute functions

@@ -4,10 +4,8 @@ pragma abicoder v2;
 
 import './interfaces/IEthAfFactory.sol';
 
-import './modules/EthAfPoolDeployerModule.sol';
+import './interfaces/modules/IEthAfPoolDeployerModule.sol';
 import './NoDelegateCall.sol';
-
-import './EthAfPool.sol';
 
 import './libraries/FactoryTokenSettings.sol';
 import './libraries/PoolTokenSettings.sol';
@@ -41,6 +39,14 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
 
     Parameters public override parameters;
 
+    struct ModuleParameters {
+        address actionsModule;
+        address collectModule;
+        address protocolModule;
+    }
+
+    ModuleParameters public override moduleParameters;
+
     struct BlastParameters {
         address blast;
         address blastPoints;
@@ -58,6 +64,9 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
 
     constructor(
         address _poolDeployerModule,
+        address _actionsModule,
+        address _collectModule,
+        address _protocolModule,
         address blast,
         address blastPoints,
         address gasCollector,
@@ -74,7 +83,14 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         emit FeeAmountEnabled(10000, 200);
 
         require(_poolDeployerModule != address(0));
+        require(_actionsModule != address(0));
+        require(_collectModule != address(0));
+        require(_protocolModule != address(0));
+
         poolDeployerModule = _poolDeployerModule;
+        moduleParameters.actionsModule = _actionsModule;
+        moduleParameters.collectModule = _collectModule;
+        moduleParameters.protocolModule = _protocolModule;
 
         parameters.factory = address(this);
 
@@ -84,18 +100,15 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         blastParameters.pointsOperator = pointsOperator;
 
         // calls to setup blast
-        // allow these calls to fail on local fork
-        // check success after deployment
         if(blast != address(0)) {
-            blast.call(abi.encodeWithSelector(IBlast.configureAutomaticYield.selector));
-            blast.call(abi.encodeWithSelector(IBlast.configureClaimableGas.selector));
+            IBlast(blast).configureClaimableGas();
             if(gasCollector != address(0)) {
-                blast.call(abi.encodeWithSelector(IBlast.configureGovernor.selector, gasCollector));
+                IBlast(blast).configureGovernor(gasCollector);
             }
 
         }
         if(blastPoints != address(0) && pointsOperator != address(0)) {
-            blastPoints.call(abi.encodeWithSelector(IBlastPoints.configurePointsOperator.selector, pointsOperator));
+            IBlastPoints(blastPoints).configurePointsOperator(pointsOperator);
         }
     }
 
@@ -139,8 +152,10 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
 
     // calculates the token settings to use in a pool with these tokens
     function _calculatePoolTokenSettings(address token0, address token1) internal view returns (bytes32 poolTokenSettings) {
+        // check pair override
         poolTokenSettings = tokenPairSettings[token0][token1];
         if(poolTokenSettings != bytes32(uint256(0))) return poolTokenSettings;
+        // check token settings
         bytes32 tokenSettings0 = tokenSettings[token0];
         bytes32 tokenSettings1 = tokenSettings[token1];
         poolTokenSettings = bytes32(uint256(0));
@@ -213,14 +228,7 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         isBaseTokenETH = FactoryTokenSettings.isBaseTokenETH(settings);
     }
 
-    struct SetTokenSettingsParam {
-        address token;
-        bytes32 settings;
-    }
-
-    event TokenSettingsSet(address indexed token, bytes32 settings);
-
-    function setTokenSettings(SetTokenSettingsParam[] calldata params) external {
+    function setTokenSettings(SetTokenSettingsParam[] calldata params) external override {
         require(msg.sender == owner);
         for(uint256 i = 0; i < params.length; ++i) {
             address token = params[i].token;
@@ -230,15 +238,7 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         }
     }
 
-    struct SetTokenPairSettingsParam {
-        address token0; // order required
-        address token1;
-        bytes32 settings;
-    }
-
-    event TokenPairSettingsSet(address indexed token0, address indexed token1, bytes32 settings);
-
-    function setTokenPairSettings(SetTokenPairSettingsParam[] calldata params) external {
+    function setTokenPairSettings(SetTokenPairSettingsParam[] calldata params) external override {
         require(msg.sender == owner);
         for(uint256 i = 0; i < params.length; ++i) {
             address token0 = params[i].token0;
@@ -249,9 +249,7 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         }
     }
 
-    event SwapFeeDistributorSet(address indexed distributor);
-
-    function setSwapFeeDistributor(address distributor) external {
+    function setSwapFeeDistributor(address distributor) external override {
         require(msg.sender == owner);
         swapFeeDistributor = distributor;
         emit SwapFeeDistributorSet(distributor);
