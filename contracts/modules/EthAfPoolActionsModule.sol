@@ -626,7 +626,8 @@ contract EthAfPoolActionsModule is IEthAfPoolActionsModule, IEthAfPoolEvents {
                     slot0Start.observationCardinality,
                     slot0Start.observationCardinalityNext
                 );
-            (getSlot0().sqrtPriceX96, getSlot0().tick, getSlot0().observationIndex, getSlot0().observationCardinality) = (
+            Slot0 storage _slot0 = getSlot0();
+            (_slot0.sqrtPriceX96, _slot0.tick, _slot0.observationIndex, _slot0.observationCardinality) = (
                 state.sqrtPriceX96,
                 state.tick,
                 observationIndex,
