@@ -120,6 +120,9 @@ describe('EthAfPoolWithBaseToken2', () => {
     tickSpacing: number = TICK_SPACINGS[feeAmount],
     expectedPoolTokenSettings:any = undefined
   ) {
+    if(!!expectedPoolTokenSettings) {
+      expect(await factory.calculatePoolTokenSettings(tokens[0], tokens[1]), 'pool token settings').to.eq(expectedPoolTokenSettings)
+    }
     const create2Address = getCreate2Address(factory.address, tokens, feeAmount, poolBytecode)
     const create = factory.createPool(tokens[0], tokens[1], feeAmount)
 
@@ -163,6 +166,8 @@ describe('EthAfPoolWithBaseToken2', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(true)
       expect(tokenSettings.isBaseToken1).to.eq(false)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
       const poolFunctions = createPoolFunctions({ swapTarget: swapTargetCallee, token0, token1, pool })
       const slot0_A = await pool.slot0()
@@ -533,6 +538,8 @@ describe('EthAfPoolWithBaseToken2', () => {
       let tokenSettings = await pool.getPoolTokenSettings()
       expect(tokenSettings.isBaseToken0).to.eq(false)
       expect(tokenSettings.isBaseToken1).to.eq(true)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(false)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(false)
       await pool.initialize(sqrtPriceX96Initial)
       const poolFunctions = createPoolFunctions({ swapTarget: swapTargetCallee, token0, token1, pool })
       const slot0_A = await pool.slot0()

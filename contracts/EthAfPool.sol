@@ -533,16 +533,8 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
 
     // added view functions
 
-    function getPoolTokenSettings() external view override returns (
-        bool isBaseToken0,
-        bool isBaseToken1
-    ) {
-        bytes32 settings = poolTokenSettings;
-        isBaseToken0 = PoolTokenSettings.isBaseToken0(settings);
-        isBaseToken1 = PoolTokenSettings.isBaseToken1(settings);
-    }
-
-    function getPoolTokenSettingsFull() public view returns (
+    /// @inheritdoc IEthAfPoolImmutables
+    function getPoolTokenSettings() public view override returns (
         bool isBaseToken0,
         bool isBaseToken1,
         bool token0SupportsNativeYield,
@@ -555,7 +547,8 @@ contract EthAfPool is IEthAfPool, NoDelegateCall {
         token1SupportsNativeYield = PoolTokenSettings.token1SupportsNativeYield(settings);
     }
 
-    function baseTokensAccumulated() external view returns (uint256 amount0, uint256 amount1) {
+    /// @inheritdoc IEthAfPoolState
+    function baseTokensAccumulated() external view override returns (uint256 amount0, uint256 amount1) {
         BaseTokensAccumulated storage _baseTokensAcc = getBaseTokensAccumulated();
         amount0 = _baseTokensAcc.amount0;
         amount1 = _baseTokensAcc.amount1;

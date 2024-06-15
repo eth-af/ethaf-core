@@ -159,26 +159,101 @@ describe('EthAfPoolWithBaseToken5', () => {
       }
     ]) // others are pump tokens
 
+    let usdbSetings = await factory.getTokenSettings(usdb.address)
+    expect(usdbSetings.isBaseTokenUSD).to.eq(true)
+    expect(usdbSetings.isBaseTokenETH).to.eq(false)
+    expect(usdbSetings.supportsNativeYield).to.eq(true)
+    let wethSetings = await factory.getTokenSettings(weth.address)
+    expect(wethSetings.isBaseTokenUSD).to.eq(false)
+    expect(wethSetings.isBaseTokenETH).to.eq(true)
+    expect(wethSetings.supportsNativeYield).to.eq(true)
+
+    const expectedSettings = [
+      // NO_BASE_TOKEN
+      {
+        isBaseToken0: false,
+        isBaseToken1: false,
+        token0SupportsNativeYield: false,
+        token1SupportsNativeYield: false,
+      },
+      // USDB_WETH_POOL_FLAGS
+      {
+        isBaseToken0: true,
+        isBaseToken1: false,
+        token0SupportsNativeYield: true,
+        token1SupportsNativeYield: true,
+      },
+      // USDB_WETH_POOL_FLAGS
+      {
+        isBaseToken0: true,
+        isBaseToken1: false,
+        token0SupportsNativeYield: true,
+        token1SupportsNativeYield: true,
+      },
+      // USDB_WETH_POOL_FLAGS
+      {
+        isBaseToken0: true,
+        isBaseToken1: false,
+        token0SupportsNativeYield: true,
+        token1SupportsNativeYield: true,
+      },
+      // IS_USDB_TOKEN1_FLAGS
+      {
+        isBaseToken0: false,
+        isBaseToken1: true,
+        token0SupportsNativeYield: false,
+        token1SupportsNativeYield: true,
+      },
+      // IS_WETH_TOKEN1_FLAGS
+      {
+        isBaseToken0: false,
+        isBaseToken1: true,
+        token0SupportsNativeYield: false,
+        token1SupportsNativeYield: true,
+      },
+      // NO_BASE_TOKEN
+      {
+        isBaseToken0: false,
+        isBaseToken1: false,
+        token0SupportsNativeYield: false,
+        token1SupportsNativeYield: false,
+      },
+      // IS_USDB_TOKEN0_FLAGS
+      {
+        isBaseToken0: true,
+        isBaseToken1: false,
+        token0SupportsNativeYield: true,
+        token1SupportsNativeYield: false,
+      },
+      // IS_WETH_TOKEN0_FLAGS
+      {
+        isBaseToken0: true,
+        isBaseToken1: false,
+        token0SupportsNativeYield: true,
+        token1SupportsNativeYield: false,
+      },
+    ]
+
     // non erc20s
-    const res0 = await createAndCheckPool([TEST_ADDRESSES[0], TEST_ADDRESSES[1]], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN)
+    const res0 = await createAndCheckPool([TEST_ADDRESSES[0], TEST_ADDRESSES[1]], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN, expectedSettings[0])
     pool0 = res0.pool
     // usdb/weth pairs
-    const res1 = await createAndCheckPool([tkn1, tkn2], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.USDB_WETH_POOL_FLAGS)
+    const res1 = await createAndCheckPool([tkn1, tkn2], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.USDB_WETH_POOL_FLAGS, expectedSettings[1])
     pool1 = res1.pool
-    const res2 = await createAndCheckPool([tkn1, tkn2], FeeAmount.MEDIUM, TICK_SPACINGS[FeeAmount.MEDIUM], PoolTokenSettings.USDB_WETH_POOL_FLAGS)
+    const res2 = await createAndCheckPool([tkn1, tkn2], FeeAmount.MEDIUM, TICK_SPACINGS[FeeAmount.MEDIUM], PoolTokenSettings.USDB_WETH_POOL_FLAGS, expectedSettings[2])
     pool2 = res2.pool
-    const res3 = await createAndCheckPool([tkn1, tkn2], FeeAmount.HIGH, TICK_SPACINGS[FeeAmount.HIGH], PoolTokenSettings.USDB_WETH_POOL_FLAGS)
+    const res3 = await createAndCheckPool([tkn1, tkn2], FeeAmount.HIGH, TICK_SPACINGS[FeeAmount.HIGH], PoolTokenSettings.USDB_WETH_POOL_FLAGS, expectedSettings[3])
     pool3 = res3.pool
     // test combos
-    const res4 = await createAndCheckPool([tkn0, tkn1], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_USDB_TOKEN1_FLAGS)
+    const res4 = await createAndCheckPool([tkn0, tkn1], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_USDB_TOKEN1_FLAGS, expectedSettings[4])
     pool4 = res4.pool
-    const res5 = await createAndCheckPool([tkn0, tkn2], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_WETH_TOKEN1_FLAGS)
+    const res5 = await createAndCheckPool([tkn0, tkn2], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_WETH_TOKEN1_FLAGS, expectedSettings[5])
     pool5 = res5.pool
-    const res6 = await createAndCheckPool([tkn0, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN)
+    const res6 = await createAndCheckPool([tkn0, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN, expectedSettings[6])
     pool6 = res6.pool
-    const res7 = await createAndCheckPool([tkn1, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_USDB_TOKEN0_FLAGS)
+    const res7 = await createAndCheckPool([tkn1, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_USDB_TOKEN0_FLAGS, expectedSettings[7])
     pool7 = res7.pool
-    const res8 = await createAndCheckPool([tkn2, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_WETH_TOKEN0_FLAGS)
+    const res8 = await createAndCheckPool([tkn2, tkn3], FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_WETH_TOKEN0_FLAGS, expectedSettings[8])
     pool8 = res8.pool
 
     pools = [pool0, pool1, pool2, pool3, pool4, pool5, pool6, pool7, pool8]
@@ -248,8 +323,12 @@ describe('EthAfPoolWithBaseToken5', () => {
     tokens: [string, string],
     feeAmount: FeeAmount,
     tickSpacing: number = TICK_SPACINGS[feeAmount],
-    expectedPoolTokenSettings:any = undefined
+    expectedPoolTokenSettings:any = undefined,
+    expectedPoolTokenSettingsDecoded:any = undefined
   ) {
+    if(!!expectedPoolTokenSettings) {
+      expect(await factory.calculatePoolTokenSettings(tokens[0], tokens[1]), 'pool token settings').to.eq(expectedPoolTokenSettings)
+    }
     const create2Address = getCreate2Address(factory.address, tokens, feeAmount, poolBytecode)
     const create = factory.createPool(tokens[0], tokens[1], feeAmount)
 
@@ -276,6 +355,13 @@ describe('EthAfPoolWithBaseToken5', () => {
 
     if(!!expectedPoolTokenSettings) {
       expect(await pool.poolTokenSettings(), 'pool token settings').to.eq(expectedPoolTokenSettings)
+    }
+    if(!!expectedPoolTokenSettingsDecoded) {
+      let tokenSettings = await pool.getPoolTokenSettings()
+      expect(tokenSettings.isBaseToken0).to.eq(expectedPoolTokenSettingsDecoded.isBaseToken0)
+      expect(tokenSettings.isBaseToken1).to.eq(expectedPoolTokenSettingsDecoded.isBaseToken1)
+      expect(tokenSettings.token0SupportsNativeYield).to.eq(expectedPoolTokenSettingsDecoded.token0SupportsNativeYield)
+      expect(tokenSettings.token1SupportsNativeYield).to.eq(expectedPoolTokenSettingsDecoded.token1SupportsNativeYield)
     }
     return { pool }
   }

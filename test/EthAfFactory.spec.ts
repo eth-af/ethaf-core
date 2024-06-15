@@ -105,6 +105,9 @@ describe('EthAfFactory', () => {
     tickSpacing: number = TICK_SPACINGS[feeAmount],
     expectedPoolTokenSettings:any = undefined
   ) {
+    if(!!expectedPoolTokenSettings) {
+      expect(await factory.calculatePoolTokenSettings(tokens[0], tokens[1]), 'pool token settings').to.eq(expectedPoolTokenSettings)
+    }
     const create2Address = getCreate2Address(factory.address, tokens, feeAmount, poolBytecode)
     const create = factory.createPool(tokens[0], tokens[1], feeAmount)
 
@@ -240,6 +243,15 @@ describe('EthAfFactory', () => {
       }])
       expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
       expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.NO_SETTING)
+
+      let tokenSettings0 = await factory.getTokenSettings(TEST_ADDRESSES[0])
+      expect(tokenSettings0.isBaseTokenUSD).to.eq(true)
+      expect(tokenSettings0.isBaseTokenETH).to.eq(false)
+      expect(tokenSettings0.supportsNativeYield).to.eq(false)
+      let tokenSettings1 = await factory.getTokenSettings(TEST_ADDRESSES[1])
+      expect(tokenSettings1.isBaseTokenUSD).to.eq(false)
+      expect(tokenSettings1.isBaseTokenETH).to.eq(false)
+      expect(tokenSettings1.supportsNativeYield).to.eq(false)
     })
     it('emits an event', async () => {
       await expect(factory.setTokenSettings([{
@@ -259,6 +271,16 @@ describe('EthAfFactory', () => {
         token: TEST_ADDRESSES[1],
         settings: FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK,
       }])
+
+      let tokenSettings0 = await factory.getTokenSettings(TEST_ADDRESSES[0])
+      expect(tokenSettings0.isBaseTokenUSD).to.eq(false)
+      expect(tokenSettings0.isBaseTokenETH).to.eq(false)
+      expect(tokenSettings0.supportsNativeYield).to.eq(false)
+      let tokenSettings1 = await factory.getTokenSettings(TEST_ADDRESSES[1])
+      expect(tokenSettings1.isBaseTokenUSD).to.eq(true)
+      expect(tokenSettings1.isBaseTokenETH).to.eq(false)
+      expect(tokenSettings1.supportsNativeYield).to.eq(false)
+
       await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
     })
     it('can create pool with neither base token pt 1', async () => {
@@ -277,6 +299,16 @@ describe('EthAfFactory', () => {
       ])
       expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
       expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
+
+      let tokenSettings0 = await factory.getTokenSettings(TEST_ADDRESSES[0])
+      expect(tokenSettings0.isBaseTokenUSD).to.eq(true)
+      expect(tokenSettings0.isBaseTokenETH).to.eq(false)
+      expect(tokenSettings0.supportsNativeYield).to.eq(false)
+      let tokenSettings1 = await factory.getTokenSettings(TEST_ADDRESSES[1])
+      expect(tokenSettings1.isBaseTokenUSD).to.eq(true)
+      expect(tokenSettings1.isBaseTokenETH).to.eq(false)
+      expect(tokenSettings1.supportsNativeYield).to.eq(false)
+
       await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN)
     })
     it('can create pool with token0 base token pt 2', async () => {
@@ -285,6 +317,16 @@ describe('EthAfFactory', () => {
         settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK,
       }])
       expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+
+      let tokenSettings0 = await factory.getTokenSettings(TEST_ADDRESSES[0])
+      expect(tokenSettings0.isBaseTokenUSD).to.eq(false)
+      expect(tokenSettings0.isBaseTokenETH).to.eq(true)
+      expect(tokenSettings0.supportsNativeYield).to.eq(false)
+      let tokenSettings1 = await factory.getTokenSettings(TEST_ADDRESSES[1])
+      expect(tokenSettings1.isBaseTokenUSD).to.eq(false)
+      expect(tokenSettings1.isBaseTokenETH).to.eq(false)
+      expect(tokenSettings1.supportsNativeYield).to.eq(false)
+
       await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
     })
     it('can create pool with token1 base token pt 2', async () => {
@@ -293,6 +335,16 @@ describe('EthAfFactory', () => {
         settings: FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK,
       }])
       expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+
+      let tokenSettings0 = await factory.getTokenSettings(TEST_ADDRESSES[0])
+      expect(tokenSettings0.isBaseTokenUSD).to.eq(false)
+      expect(tokenSettings0.isBaseTokenETH).to.eq(false)
+      expect(tokenSettings0.supportsNativeYield).to.eq(false)
+      let tokenSettings1 = await factory.getTokenSettings(TEST_ADDRESSES[1])
+      expect(tokenSettings1.isBaseTokenUSD).to.eq(false)
+      expect(tokenSettings1.isBaseTokenETH).to.eq(true)
+      expect(tokenSettings1.supportsNativeYield).to.eq(false)
+
       await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
     })
     it('can create pool with neither base token pt 3', async () => {
@@ -308,6 +360,16 @@ describe('EthAfFactory', () => {
       ])
       expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
       expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+
+      let tokenSettings0 = await factory.getTokenSettings(TEST_ADDRESSES[0])
+      expect(tokenSettings0.isBaseTokenUSD).to.eq(false)
+      expect(tokenSettings0.isBaseTokenETH).to.eq(true)
+      expect(tokenSettings0.supportsNativeYield).to.eq(false)
+      let tokenSettings1 = await factory.getTokenSettings(TEST_ADDRESSES[1])
+      expect(tokenSettings1.isBaseTokenUSD).to.eq(false)
+      expect(tokenSettings1.isBaseTokenETH).to.eq(true)
+      expect(tokenSettings1.supportsNativeYield).to.eq(false)
+
       await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.NO_BASE_TOKEN)
     })
     it('can create pool with token0 base token pt 3', async () => {
@@ -323,6 +385,16 @@ describe('EthAfFactory', () => {
       ])
       expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
       expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
+
+      let tokenSettings0 = await factory.getTokenSettings(TEST_ADDRESSES[0])
+      expect(tokenSettings0.isBaseTokenUSD).to.eq(true)
+      expect(tokenSettings0.isBaseTokenETH).to.eq(false)
+      expect(tokenSettings0.supportsNativeYield).to.eq(false)
+      let tokenSettings1 = await factory.getTokenSettings(TEST_ADDRESSES[1])
+      expect(tokenSettings1.isBaseTokenUSD).to.eq(false)
+      expect(tokenSettings1.isBaseTokenETH).to.eq(true)
+      expect(tokenSettings1.supportsNativeYield).to.eq(false)
+
       await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN0_BASE_TOKEN_MASK)
     })
     it('can create pool with token1 base token pt 3', async () => {
@@ -338,6 +410,16 @@ describe('EthAfFactory', () => {
       ])
       expect(await factory.tokenSettings(TEST_ADDRESSES[0])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_ETH_MASK)
       expect(await factory.tokenSettings(TEST_ADDRESSES[1])).to.eq(FactoryTokenSettings.IS_BASE_TOKEN_USD_MASK)
+
+      let tokenSettings0 = await factory.getTokenSettings(TEST_ADDRESSES[0])
+      expect(tokenSettings0.isBaseTokenUSD).to.eq(false)
+      expect(tokenSettings0.isBaseTokenETH).to.eq(true)
+      expect(tokenSettings0.supportsNativeYield).to.eq(false)
+      let tokenSettings1 = await factory.getTokenSettings(TEST_ADDRESSES[1])
+      expect(tokenSettings1.isBaseTokenUSD).to.eq(true)
+      expect(tokenSettings1.isBaseTokenETH).to.eq(false)
+      expect(tokenSettings1.supportsNativeYield).to.eq(false)
+
       await createAndCheckPool(TEST_ADDRESSES, FeeAmount.LOW, TICK_SPACINGS[FeeAmount.LOW], PoolTokenSettings.IS_TOKEN1_BASE_TOKEN_MASK)
     })
   })

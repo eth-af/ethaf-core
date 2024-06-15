@@ -59,8 +59,10 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
     /// @inheritdoc IEthAfFactory
     address public override swapFeeDistributor;
 
-    mapping(address => bytes32) public tokenSettings;
-    mapping(address => mapping(address => bytes32)) public tokenPairSettings;
+    /// @inheritdoc IEthAfFactory
+    mapping(address => bytes32) public override tokenSettings;
+    /// @inheritdoc IEthAfFactory
+    mapping(address => mapping(address => bytes32)) public override tokenPairSettings;
 
     constructor(
         address _poolDeployerModule,
@@ -221,15 +223,24 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         pool = _allPools[index];
     }
 
-    function getTokenSettings(address token) external view returns (
+    /// @inheritdoc IEthAfFactory
+    function getTokenSettings(address token) external view override returns (
         bool isBaseTokenUSD,
-        bool isBaseTokenETH
+        bool isBaseTokenETH,
+        bool supportsNativeYield
     ) {
         bytes32 settings = tokenSettings[token];
         isBaseTokenUSD = FactoryTokenSettings.isBaseTokenUSD(settings);
         isBaseTokenETH = FactoryTokenSettings.isBaseTokenETH(settings);
+        supportsNativeYield = FactoryTokenSettings.supportsNativeYield(settings);
     }
 
+    /// @inheritdoc IEthAfFactory
+    function calculatePoolTokenSettings(address token0, address token1) external view override returns (bytes32 poolTokenSettings) {
+        poolTokenSettings = _calculatePoolTokenSettings(token0, token1);
+    }
+
+    /// @inheritdoc IEthAfFactory
     function setTokenSettings(SetTokenSettingsParam[] calldata params) external override {
         require(msg.sender == owner);
         for(uint256 i = 0; i < params.length; ++i) {
@@ -240,6 +251,7 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         }
     }
 
+    /// @inheritdoc IEthAfFactory
     function setTokenPairSettings(SetTokenPairSettingsParam[] calldata params) external override {
         require(msg.sender == owner);
         for(uint256 i = 0; i < params.length; ++i) {
@@ -251,6 +263,7 @@ contract EthAfFactory is IEthAfFactory, NoDelegateCall {
         }
     }
 
+    /// @inheritdoc IEthAfFactory
     function setSwapFeeDistributor(address distributor) external override {
         require(msg.sender == owner);
         swapFeeDistributor = distributor;

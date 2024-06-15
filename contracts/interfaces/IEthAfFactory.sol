@@ -29,10 +29,19 @@ interface IEthAfFactory {
     /// @param tickSpacing The minimum number of ticks between initialized ticks for pools created with the given fee
     event FeeAmountEnabled(uint24 indexed fee, int24 indexed tickSpacing);
 
+    /// @notice Emitted when the settings are set for a token
+    /// @param token The token address
+    /// @param settings The token settings bytes encoded
     event TokenSettingsSet(address indexed token, bytes32 settings);
 
+    /// @notice Emitted when the settings are set for a pair of tokens
+    /// @param token0 The token0 address
+    /// @param token1 The token1 address
+    /// @param settings The pair settings bytes encoded
     event TokenPairSettingsSet(address indexed token0, address indexed token1, bytes32 settings);
 
+    /// @notice Emitted when the swap fee distributor is set
+    /// @param distributor The swap fee distribtor
     event SwapFeeDistributorSet(address indexed distributor);
 
     /// @notice Returns the current owner of the factory
@@ -140,11 +149,41 @@ interface IEthAfFactory {
     /// @return pool The pool at the index in the list
     function allPools(uint256 index) external view returns (address pool);
 
+    /// @notice Returns the settings for a token
+    /// @param token The token address
+    /// @return settings The settings for the token bytes encoded
+    function tokenSettings(address token) external view returns (bytes32 settings);
+
+    /// @notice Returns the settings for a pair of tokens
+    /// @param token0 The token0 address
+    /// @param token1 The token1 address
+    /// @return settings The settings for the pair bytes encoded
+    function tokenPairSettings(address token0, address token1) external view returns (bytes32 settings);
+
+    /// @notice Decodes and returns the settings for a token
+    /// @param token The token address
+    /// @return isBaseTokenUSD True if the token is a candidate to be a base token and is USD pegged
+    /// @return isBaseTokenETH True if the token is a candidate to be a base token and is ETH pegged
+    /// @return supportsNativeYield True if the token supports ERC20Rebasing
+    function getTokenSettings(address token) external view returns (
+        bool isBaseTokenUSD,
+        bool isBaseTokenETH,
+        bool supportsNativeYield
+    );
+
+    /// @notice Calculates the token settings to use in a pool with these tokens
+    /// @param token0 The token0 address
+    /// @param token1 The token1 address
+    /// @return poolTokenSettings The pool token settings bytes encoded
+    function calculatePoolTokenSettings(address token0, address token1) external view returns (bytes32 poolTokenSettings);
+
     struct SetTokenSettingsParam {
         address token;
         bytes32 settings;
     }
 
+    /// @notice Sets the settings for a list of tokens
+    /// @param params The list of settings
     function setTokenSettings(SetTokenSettingsParam[] calldata params) external;
 
     struct SetTokenPairSettingsParam {
@@ -153,8 +192,12 @@ interface IEthAfFactory {
         bytes32 settings;
     }
 
+    /// @notice Sets the settings for a list of pairs of tokens
+    /// @param params The list of settings
     function setTokenPairSettings(SetTokenPairSettingsParam[] calldata params) external;
 
+    /// @notice Sets the swap fee distributor
+    /// @param distributor The swap fee distributor
     function setSwapFeeDistributor(address distributor) external;
 
 }
