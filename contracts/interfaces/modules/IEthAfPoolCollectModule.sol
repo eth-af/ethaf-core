@@ -18,11 +18,17 @@ interface IEthAfPoolCollectModule {
         address token1;
     }
 
+    /// @notice Collects tokens owed to a position
+    /// @param params Collect parameters
     function collect(
         CollectParams memory params
     ) external returns (uint128 amount0, uint128 amount1);
 
-
+    /// @notice Collects the swap fees from base tokens in this pool
+    /// @param recipient The address to receive the base tokens
+    /// @param token0 The token0 contract address
+    /// @param token1 The token1 contract address
+    /// @param settings The token settings
     function collectBaseToken(
         address recipient,
         address token0,

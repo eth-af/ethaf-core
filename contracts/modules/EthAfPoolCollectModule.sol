@@ -103,6 +103,7 @@ contract EthAfPoolCollectModule is IEthAfPoolCollectModule, IEthAfPoolEvents {
     // mutator functions
     // these may or may not have the same signature as the related function on the pool
 
+    /// @inheritdoc IEthAfPoolCollectModule
     function collect(
         CollectParams memory params
     ) external override returns (uint128 amount0, uint128 amount1) {
@@ -124,7 +125,7 @@ contract EthAfPoolCollectModule is IEthAfPoolCollectModule, IEthAfPoolEvents {
         emit Collect(msg.sender, params.recipient, params.tickLower, params.tickUpper, amount0, amount1);
     }
 
-
+    /// @inheritdoc IEthAfPoolCollectModule
     function collectBaseToken(
         address recipient,
         address token0,

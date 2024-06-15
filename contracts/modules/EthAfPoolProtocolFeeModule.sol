@@ -97,7 +97,7 @@ contract EthAfPoolProtocolFeeModule is IEthAfPoolProtocolFeeModule, IEthAfPoolEv
     // mutator functions
     // these may or may not have the same signature as the related function on the pool
 
-    // /// @inheritdoc IEthAfPoolOwnerActions
+    /// @inheritdoc IEthAfPoolProtocolFeeModule
     function setFeeProtocol(uint8 feeProtocol0, uint8 feeProtocol1) external override {
         require(
             (feeProtocol0 == 0 || (feeProtocol0 >= 4 && feeProtocol0 <= 10)) &&
@@ -109,7 +109,7 @@ contract EthAfPoolProtocolFeeModule is IEthAfPoolProtocolFeeModule, IEthAfPoolEv
         emit SetFeeProtocol(feeProtocolOld % 16, feeProtocolOld >> 4, feeProtocol0, feeProtocol1);
     }
 
-    // /// @inheritdoc IEthAfPoolOwnerActions
+    /// @inheritdoc IEthAfPoolProtocolFeeModule
     function collectProtocol(
         address recipient,
         uint128 amount0Requested,

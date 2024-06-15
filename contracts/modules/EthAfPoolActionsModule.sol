@@ -117,6 +117,7 @@ contract EthAfPoolActionsModule is IEthAfPoolActionsModule, IEthAfPoolEvents {
     // mutator functions
     // these may or may not have the same signature as the related function on the pool
 
+    /// @inheritdoc IEthAfPoolActionsModule
     function initialize(uint160 sqrtPriceX96, uint32 timestamp) external override {
         Slot0 storage _slot0 = getSlot0();
         require(_slot0.sqrtPriceX96 == 0, 'AI');
@@ -149,6 +150,7 @@ contract EthAfPoolActionsModule is IEthAfPoolActionsModule, IEthAfPoolEvents {
         emit Initialize(sqrtPriceX96, tick);
     }
 
+    /// @inheritdoc IEthAfPoolActionsModule
     function increaseObservationCardinalityNext(uint16 observationCardinalityNext) external override {
         Slot0 storage _slot0 = getSlot0();
         uint16 observationCardinalityNextOld = _slot0.observationCardinalityNext; // for the event
@@ -157,13 +159,6 @@ contract EthAfPoolActionsModule is IEthAfPoolActionsModule, IEthAfPoolEvents {
         _slot0.observationCardinalityNext = observationCardinalityNextNew;
         if (observationCardinalityNextOld != observationCardinalityNextNew)
             emit IncreaseObservationCardinalityNext(observationCardinalityNextOld, observationCardinalityNextNew);
-    }
-
-    /// @dev Common checks for valid tick inputs.
-    function checkTicks(int24 tickLower, int24 tickUpper) private pure {
-        require(tickLower < tickUpper, 'TLU');
-        require(tickLower >= TickMath.MIN_TICK, 'TLM');
-        require(tickUpper <= TickMath.MAX_TICK, 'TUM');
     }
 
     struct ModifyPositionParams {
@@ -180,6 +175,7 @@ contract EthAfPoolActionsModule is IEthAfPoolActionsModule, IEthAfPoolEvents {
         uint128 maxLiquidityPerTick;
     }
 
+    /// @dev Modifies a position
     function _modifyPosition(ModifyPositionParams memory params)
         private
         returns (
@@ -264,6 +260,7 @@ contract EthAfPoolActionsModule is IEthAfPoolActionsModule, IEthAfPoolEvents {
         uint128 maxLiquidityPerTick;
     }
 
+    /// @dev Updates a position
     function _updatePosition(
         UpdatePositionParams memory params
     ) private returns (Position.Info storage position) {
@@ -297,6 +294,7 @@ contract EthAfPoolActionsModule is IEthAfPoolActionsModule, IEthAfPoolEvents {
 
     }
 
+    /// @dev Helps to update a position
     function _updatePositionHelper(
         UpdatePositionParams memory params
     ) private returns (bytes32 flippedFlags) {
@@ -351,6 +349,7 @@ contract EthAfPoolActionsModule is IEthAfPoolActionsModule, IEthAfPoolEvents {
         }
     }
 
+    /// @inheritdoc IEthAfPoolActionsModule
     function mint(
         MintParams memory params
     ) external override returns (uint256 amount0, uint256 amount1) {
@@ -382,6 +381,7 @@ contract EthAfPoolActionsModule is IEthAfPoolActionsModule, IEthAfPoolEvents {
         emit Mint(msg.sender, params.recipient, params.tickLower, params.tickUpper, params.amount, amount0, amount1);
     }
 
+    /// @inheritdoc IEthAfPoolActionsModule
     function burn(
         BurnParams memory params
     ) external override returns (uint256 amount0, uint256 amount1) {
@@ -463,6 +463,7 @@ contract EthAfPoolActionsModule is IEthAfPoolActionsModule, IEthAfPoolEvents {
         uint256 feeAmount;
     }
 
+    /// @inheritdoc IEthAfPoolActionsModule
     function swap(
         SwapParams memory params
     ) external override returns (int256 amount0, int256 amount1) {
@@ -694,6 +695,7 @@ contract EthAfPoolActionsModule is IEthAfPoolActionsModule, IEthAfPoolEvents {
         getSlot0().unlocked = true;
     }
 
+    /// @inheritdoc IEthAfPoolActionsModule
     function flash(
         FlashParams memory params
     ) external override {
@@ -762,6 +764,13 @@ contract EthAfPoolActionsModule is IEthAfPoolActionsModule, IEthAfPoolEvents {
     }
 
     // helper functions
+
+    /// @dev Common checks for valid tick inputs.
+    function checkTicks(int24 tickLower, int24 tickUpper) private pure {
+        require(tickLower < tickUpper, 'TLU');
+        require(tickLower >= TickMath.MIN_TICK, 'TLM');
+        require(tickUpper <= TickMath.MAX_TICK, 'TUM');
+    }
 
     /// @dev Gets the erc20 balance of token held by the pool
     function getTokenBalance(address token) private view returns (uint256) {
