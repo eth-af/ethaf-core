@@ -5,21 +5,26 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "1.0.2",
-  "homepage": "https://tbd",
+  "version": "1.0.4",
+  "homepage": "https://ethaf.xyz",
   "keywords": [
     "ethaf",
     "core"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/wwHysenberg/ethaf-core"
+    "url": "https://github.com/eth-af/ethaf-core"
   },
   "files": [
     "contracts/interfaces",
     "contracts/libraries",
     "artifacts/contracts/EthAfFactory.sol/EthAfFactory.json",
     "artifacts/contracts/EthAfPool.sol/EthAfPool.json",
+    "artifacts/contracts/EthAfSwapFeeDistributor.sol/EthAfSwapFeeDistributor.json",
+    "artifacts/contracts/modules/EthAfActionsModule.sol/EthAfActionsModule.json",
+    "artifacts/contracts/modules/EthAfCollectModule.sol/EthAfCollectModule.json",
+    "artifacts/contracts/modules/EthAfProtocolFeesModule.sol/EthAfProtocolFeesModule.json",
+    "artifacts/contracts/modules/EthAfDeployerModule.sol/EthAfDeployerModule.json",
     "artifacts/contracts/interfaces/**/*.json",
     "!artifacts/contracts/interfaces/**/*.dbg.json"
   ],
