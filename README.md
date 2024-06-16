@@ -4,7 +4,7 @@ Core smart contracts of ETH AF
 
 
 This repository contains the core smart contracts for the ETH AF Protocol.
-For higher level contracts, see the [ethaf-periphery](https://github.com/wwHysenberg/ethaf-periphery)
+For higher level contracts, see the [ethaf-periphery](https://github.com/eth-af/ethaf-periphery)
 repository.
 
 ## Local deployment
