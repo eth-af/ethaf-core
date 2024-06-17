@@ -133,7 +133,6 @@ contract EthAfSwapFeeDistributor is IEthAfSwapFeeDistributor, IEthAfSwapCallback
         if(balance0 > 0 || balance1 > 0) {
             IEthAfPool(pool).flash(address(this), 0, 0, "");
         }
-        emit SwapFeesDistributed(pool);
     }
 
     // helper functions

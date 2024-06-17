@@ -16,8 +16,6 @@ interface IEthAfSwapFeeDistributor {
     /// @param gasLimitStart The amount of gas passed into the distribute call
     event SetSafeGasPerLoop(uint256 gasLimitStart, uint256 gasLimitDistribute);
 
-    event SwapFeesDistributed(address indexed pool);
-
     // view functions
 
     function owner() external view returns (address owner_);
