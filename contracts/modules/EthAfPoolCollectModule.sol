@@ -165,6 +165,10 @@ contract EthAfPoolCollectModule is IEthAfPoolCollectModule, IEthAfPoolEvents {
             TransferHelper.safeTransfer(token1, recipient, amount1);
             _baseTokensAcc.amount1 = 0;
         }
+
+        if(amount0 > 0 || amount1 > 0) {
+            emit BaseTokensCollected(amount0, amount1);
+        }
     }
 
     // helper functions
